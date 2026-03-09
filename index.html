@@ -53,6 +53,16 @@
             transition: all 0.3s ease;
             overflow-x: hidden;
             line-height: 1.5;
+            /* ===== FIX START =====
+            Prevent text cursor on non-editable elements globally
+            ===== FIX END ===== */
+            cursor: default;
+        }
+        /* ===== FIX START =====
+        Only show text cursor in input fields and textareas
+        ===== FIX END ===== */
+        input, textarea {
+            cursor: text;
         }
         .material-icons {
             font-family: 'Material Icons';
@@ -1323,6 +1333,7 @@
     </style>
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
     <div class="toast-container" id="toastContainer"></div>
@@ -1377,7 +1388,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <p class="text-muted mb-4">Enter your Staff ID and create a secure password.</p>
+                <p class="text-muted mb-4">Enter your Staff ID, create a secure password, and set up your security question.</p>
                 <form id="firstTimeSetupForm" onsubmit="app.createPassword(event)">
                     <div class="form-group">
                         <label>Staff ID *</label>
@@ -1401,6 +1412,27 @@
                                 <span class="material-icons">visibility_off</span>
                             </button>
                         </div>
+                    </div>
+                    <!-- ===== FIX START =====
+                    Security question selection during initial setup
+                    ===== FIX END ===== -->
+                    <div class="form-group">
+                        <label>Security Question *</label>
+                        <select class="form-control" id="setupSecurityQuestion" required>
+                            <option value="">Select a security question</option>
+                            <option value="What is your mother's maiden name?">What is your mother's maiden name?</option>
+                            <option value="What was the name of your first pet?">What was the name of your first pet?</option>
+                            <option value="What city were you born in?">What city were you born in?</option>
+                            <option value="What is your favorite color?">What is your favorite color?</option>
+                            <option value="What was your childhood nickname?">What was your childhood nickname?</option>
+                            <option value="What is the name of your favorite teacher?">What is the name of your favorite teacher?</option>
+                            <option value="What was your first car?">What was your first car?</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Security Answer *</label>
+                        <input type="text" class="form-control" id="setupSecurityAnswer" placeholder="Your answer (remember this for password recovery)" required autocomplete="off">
+                        <p class="text-muted" style="font-size: 12px; margin-top: 4px;">This answer will be required if you forget your password.</p>
                     </div>
                     <button type="submit" class="btn btn-primary">Create Password</button>
                 </form>
@@ -1607,7 +1639,10 @@
                         </div>
                         <div>
                             <div class="stat-value" id="statPresent" style="color: var(--success);">0</div>
-                            <div class="stat-label">Present Today</div>
+                            <!-- ===== FIX START =====
+                            Text correction: Changed "Present Today" to "Earlier Today"
+                            ===== FIX END ===== -->
+                            <div class="stat-label">Earlier Today</div>
                         </div>
                     </div>
                     <div class="stat-card late">
@@ -2402,6 +2437,90 @@
             defaultDepartments: ['HR', 'IT', 'Finance', 'Operations', 'Sales', 'Marketing'],
             defaultRoles: ['Intern', 'Junior Staff', 'Staff', 'Senior Staff', 'Team Lead', 'Supervisor', 'Assistant Manager', 'Manager', 'Senior Manager', 'Director', 'VP', 'C-Level'],
 
+            // ===== FIX START =====
+            // API-based storage layer for cross-device synchronization
+            // Falls back to localStorage if API is unavailable
+            // ===== FIX END =====
+            apiConfig: {
+                baseUrl: 'https://api.bravewood.app/v1', // Replace with your actual API endpoint
+                enabled: false, // Set to true when API is available
+                timeout: 5000
+            },
+
+            // Storage API wrapper methods
+            async storageGet(key) {
+                // Try API first if enabled
+                if (this.apiConfig.enabled) {
+                    try {
+                        const response = await fetch(`${this.apiConfig.baseUrl}/storage/${key}`, {
+                            method: 'GET',
+                            headers: { 'Content-Type': 'application/json' },
+                            signal: AbortSignal.timeout(this.apiConfig.timeout)
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Cache in localStorage for offline access
+                            localStorage.setItem(`bravewood_${key}`, JSON.stringify(data.value));
+                            return data.value;
+                        }
+                    } catch (e) {
+                        console.warn('API fetch failed, using localStorage:', e.message);
+                    }
+                }
+                // Fallback to localStorage
+                try {
+                    return JSON.parse(localStorage.getItem(`bravewood_${key}`) || 'null');
+                } catch {
+                    return null;
+                }
+            },
+
+            async storageSet(key, value) {
+                // Always save to localStorage as cache
+                localStorage.setItem(`bravewood_${key}`, JSON.stringify(value));
+                
+                // Try API if enabled
+                if (this.apiConfig.enabled) {
+                    try {
+                        const response = await fetch(`${this.apiConfig.baseUrl}/storage/${key}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ value }),
+                            signal: AbortSignal.timeout(this.apiConfig.timeout)
+                        });
+                        return response.ok;
+                    } catch (e) {
+                        console.warn('API save failed, data cached locally:', e.message);
+                        return false;
+                    }
+                }
+                return true;
+            },
+
+            async storageRemove(key) {
+                localStorage.removeItem(`bravewood_${key}`);
+                if (this.apiConfig.enabled) {
+                    try {
+                        await fetch(`${this.apiConfig.baseUrl}/storage/${key}`, {
+                            method: 'DELETE',
+                            signal: AbortSignal.timeout(this.apiConfig.timeout)
+                        });
+                    } catch (e) {
+                        console.warn('API delete failed:', e.message);
+                    }
+                }
+            },
+
+            // Helper methods for backward compatibility
+            getUsers() { return JSON.parse(localStorage.getItem('bravewood_users') || '[]'); },
+            setUsers(users) { localStorage.setItem('bravewood_users', JSON.stringify(users)); },
+            getAttendance() { return JSON.parse(localStorage.getItem('bravewood_attendance') || '[]'); },
+            setAttendance(attendance) { localStorage.setItem('bravewood_attendance', JSON.stringify(attendance)); },
+            getRules() { return JSON.parse(localStorage.getItem('bravewood_rules') || '{}'); },
+            setRules(rules) { localStorage.setItem('bravewood_rules', JSON.stringify(rules)); },
+            getAudit() { return JSON.parse(localStorage.getItem('bravewood_audit') || '[]'); },
+            setAudit(audit) { localStorage.setItem('bravewood_audit', JSON.stringify(audit)); },
+
             init() {
                 this.migrateData();
                 this.seedData();
@@ -2410,6 +2529,11 @@
                 setInterval(() => this.updateDateTime(), 1000);
                 this.setupEventListeners();
                 this.loadDepartmentsAndRoles();
+
+                // ===== FIX START =====
+                // Clear bulk upload messages on page refresh - ensure no persistent status messages
+                // ===== FIX END =====
+                this.clearBulkUploadMessages();
 
                 const dropZone = document.getElementById('csvUploadZone');
                 if (dropZone) {
@@ -2431,6 +2555,11 @@
                         this.navigate(e.state.page, false);
                     }
                 });
+
+                // ===== FIX START =====
+                // Check for existing session to maintain login after page refresh
+                // ===== FIX END =====
+                this.checkSession();
             },
 
             setupEventListeners() {
@@ -2868,19 +2997,27 @@
                 const staffId = document.getElementById('setupStaffId').value.trim();
                 const password = document.getElementById('setupPassword').value;
                 const confirmPassword = document.getElementById('setupConfirmPassword').value;
+                // ===== FIX START =====
+                // Collect security question and answer from user during setup
+                // ===== FIX END =====
+                const securityQuestion = document.getElementById('setupSecurityQuestion').value;
+                const securityAnswer = document.getElementById('setupSecurityAnswer').value.trim();
 
                 if (password !== confirmPassword) { this.showToast('Passwords do not match', 'error'); return; }
                 if (password.length < 6) { this.showToast('Password must be at least 6 characters', 'error'); return; }
+                if (!securityQuestion) { this.showToast('Please select a security question', 'error'); return; }
+                if (!securityAnswer) { this.showToast('Please provide an answer to your security question', 'error'); return; }
 
                 const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const userIndex = users.findIndex(u => u.staffId === staffId);
 
                 if (userIndex === -1) { this.showToast('Staff ID not found. Contact admin.', 'error'); return; }
 
-                if (!users[userIndex].securityQuestion) {
-                    users[userIndex].securityQuestion = this.securityQuestions[Math.floor(Math.random() * this.securityQuestions.length)];
-                    users[userIndex].securityAnswer = users[userIndex].name.split(' ')[0].toLowerCase();
-                }
+                // ===== FIX START =====
+                // Store user-selected security question and answer instead of random assignment
+                // ===== FIX END =====
+                users[userIndex].securityQuestion = securityQuestion;
+                users[userIndex].securityAnswer = securityAnswer.toLowerCase();
 
                 users[userIndex].password = password;
                 users[userIndex].passwordCreated = true;
@@ -2906,11 +3043,12 @@
 
                 if (!user) { this.showToast('Staff ID not found', 'error'); return; }
 
+                // ===== FIX START =====
+                // Security questions must be set up during registration - no random assignment
+                // ===== FIX END =====
                 if (!user.securityQuestion) {
-                    const randomQ = this.securityQuestions[Math.floor(Math.random() * this.securityQuestions.length)];
-                    user.securityQuestion = randomQ;
-                    user.securityAnswer = user.name.split(' ')[0].toLowerCase();
-                    localStorage.setItem('bravewood_users', JSON.stringify(users));
+                    this.showToast('Security question not set up. Please contact your administrator.', 'error');
+                    return;
                 }
 
                 this.tempResetStaff = user;
@@ -3632,6 +3770,16 @@
                 document.getElementById('bulkImageResults').classList.remove('hidden');
             },
 
+            // ===== FIX START =====
+            // Clear bulk upload messages on page refresh - ensures status messages don't persist
+            // ===== FIX END =====
+            clearBulkUploadMessages() {
+                const uploadResults = document.getElementById('uploadResults');
+                const bulkImageResults = document.getElementById('bulkImageResults');
+                if (uploadResults) uploadResults.classList.add('hidden');
+                if (bulkImageResults) bulkImageResults.classList.add('hidden');
+            },
+
             loadRules() {
                 const rules = JSON.parse(localStorage.getItem('bravewood_rules') || '{}');
                 document.getElementById('workStartTime').value = rules.workStartTime || '09:00';
@@ -3866,6 +4014,9 @@
             },
 
             emailMyData() {
+                // ===== FIX START =====
+                // Improved email delivery with better user feedback and error handling
+                // ===== FIX END =====
                 const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const user = users.find(u => u.staffId === this.currentUser.staffId);
                 if (!user || !user.email) {
@@ -3873,38 +4024,94 @@
                     return;
                 }
 
+                // Validate email format
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(user.email)) {
+                    this.showToast('Please enter a valid email address in your profile', 'error');
+                    return;
+                }
+
                 const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
                 const myAttendance = attendance.filter(a => a.staffId === user.staffId).sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
 
+                // Build comprehensive email content
                 let emailBody = `Hello ${user.name},\n\n`;
                 emailBody += `Here is your attendance data from Bravewood Staff Check-In System:\n\n`;
+                emailBody += `========================================\n`;
+                emailBody += `PROFILE INFORMATION\n`;
+                emailBody += `========================================\n`;
                 emailBody += `Staff ID: ${user.staffId}\n`;
                 emailBody += `Name: ${user.name}\n`;
                 emailBody += `Department: ${user.department || 'N/A'}\n`;
-                emailBody += `Role: ${user.departmentRole || 'N/A'}\n\n`;
-                emailBody += `Attendance Records:\n`;
-                emailBody += `-------------------\n`;
+                emailBody += `Role: ${user.departmentRole || 'N/A'}\n`;
+                emailBody += `Work Start Time: ${user.workStartTime || '09:00'}\n\n`;
+
+                emailBody += `========================================\n`;
+                emailBody += `ATTENDANCE SUMMARY\n`;
+                emailBody += `========================================\n`;
+                const totalDays = myAttendance.length;
+                const onTimeDays = myAttendance.filter(a => a.status === 'ON_TIME').length;
+                const lateDays = myAttendance.filter(a => a.status === 'LATE').length;
+                const punctualityRate = totalDays > 0 ? Math.round((onTimeDays / totalDays) * 100) : 0;
+
+                emailBody += `Total Check-ins: ${totalDays}\n`;
+                emailBody += `On Time: ${onTimeDays}\n`;
+                emailBody += `Late: ${lateDays}\n`;
+                emailBody += `Punctuality Rate: ${punctualityRate}%\n\n`;
+
+                emailBody += `========================================\n`;
+                emailBody += `DETAILED ATTENDANCE RECORDS\n`;
+                emailBody += `========================================\n`;
 
                 if (myAttendance.length === 0) {
                     emailBody += 'No attendance records found.\n';
                 } else {
-                    myAttendance.forEach(a => {
-                        emailBody += `${a.date} - ${a.time} - ${a.status}\n`;
+                    myAttendance.forEach((a, index) => {
+                        emailBody += `${index + 1}. ${a.date} - ${a.time} - ${a.status}\n`;
                     });
                 }
 
-                emailBody += `\n-------------------\n`;
-                emailBody += `Total Check-ins: ${myAttendance.length}\n`;
-                emailBody += `On Time: ${myAttendance.filter(a => a.status === 'ON_TIME').length}\n`;
-                emailBody += `Late: ${myAttendance.filter(a => a.status === 'LATE').length}\n\n`;
+                emailBody += `\n========================================\n`;
+                emailBody += `Report generated on: ${new Date().toLocaleString()}\n`;
+                emailBody += `========================================\n\n`;
                 emailBody += `Best regards,\nBravewood Staff Check-In System`;
 
                 const subject = `Your Attendance Data - ${new Date().toLocaleDateString()}`;
                 const mailtoLink = `mailto:${user.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
                 
-                window.open(mailtoLink, '_blank');
-                this.showToast('Opening email client...', 'success');
-                this.logAudit('EMAIL_DATA', `User ${user.staffId} requested data email`);
+                // Try to open email client with fallback
+                try {
+                    const emailWindow = window.open(mailtoLink, '_blank');
+                    if (emailWindow) {
+                        this.showToast('Email client opened! Please send the email.', 'success');
+                    } else {
+                        // Fallback: copy to clipboard
+                        this.copyToClipboard(emailBody);
+                        this.showToast('Email content copied to clipboard! Please paste in your email client.', 'warning');
+                    }
+                } catch (e) {
+                    this.copyToClipboard(emailBody);
+                    this.showToast('Email content copied to clipboard! Please paste in your email client.', 'warning');
+                }
+                this.logAudit('EMAIL_DATA', `User ${user.staffId} requested data email to ${user.email}`);
+            },
+
+            // ===== FIX START =====
+            // Helper function to copy text to clipboard
+            // ===== FIX END =====
+            copyToClipboard(text) {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                } catch (err) {
+                    console.error('Failed to copy:', err);
+                }
+                document.body.removeChild(textarea);
             },
 
             loadSettings() {
