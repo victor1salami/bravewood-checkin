@@ -3808,11 +3808,11 @@
                         results.push({ staffId, status: 'success', message: 'Uploaded' });
                         processed++;
                         
-                        if (processed === files.length) {
+                        if (processed === files.length) { (async () => {
                             await this.setUsers(users);
                             this.showBulkImageResults(results);
                             await this.logAudit('BULK_IMAGE_UPLOAD', `${results.filter(r => r.status === 'success').length} images uploaded`);
-                        }
+                        })(); }
                     };
                     reader.readAsDataURL(file);
                 });
