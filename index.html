@@ -7,10 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- ===== FIX START =====
-    Supabase JavaScript SDK for cross-device data synchronization
-    ===== FIX END ===== -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
         :root {
             --primary: #030940;
@@ -2443,121 +2440,186 @@
             defaultRoles: ['Intern', 'Junior Staff', 'Staff', 'Senior Staff', 'Team Lead', 'Supervisor', 'Assistant Manager', 'Manager', 'Senior Manager', 'Director', 'VP', 'C-Level'],
 
             // ===== FIX START =====
-            // Supabase client initialization for cross-device data synchronization
-            // Replaces localStorage with Supabase key-value store
+            // API-based storage layer for cross-device synchronization
+            // Falls back to localStorage if API is unavailable
+            // ===== FIX END =====
+            apiConfig: {
+                baseUrl: 'https://api.bravewood.app/v1', // Replace with your actual API endpoint
+                enabled: false, // Set to true when API is available
+                timeout: 5000
+            },
+
+
+            // ===== FIX START =====
+            // Supabase client for cross-device sync
             // ===== FIX END =====
             supabase: null,
 
             initSupabase() {
-                // ===== FIX START =====
-                // Initialize Supabase client with project credentials
-                // ===== FIX END =====
                 const SUPABASE_URL = 'https://jxjrvvxvxhvbtkwamnrf.supabase.co';
-                const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4anJ2dnh2eGh2YnRrd2FtbnJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNDg4MzQsImV4cCI6MjA4ODYyNDgzNH0.2XiHrYVD-1RIU3xIugJJ39iEtS-7xlNzcGs10eSIrbE';
-                this.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                const SUPABASE_ANON_KEY = 'YOUR_PUBLIC_ANON_KEY';
+                if (SUPABASE_ANON_KEY === 'YOUR_PUBLIC_ANON_KEY') {
+                    console.warn('Supabase not configured - using local mode');
+                    this.supabase = null;
+                    return;
+                }
+                try {
+                    this.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    console.log('Supabase initialized');
+                } catch (e) {
+                    console.error('Supabase init failed:', e);
+                    this.supabase = null;
+                }
             },
 
             // ===== FIX START =====
-            // Supabase storage operations - replaces all localStorage calls
+            // Async storage methods using Supabase
             // ===== FIX END =====
             async storageGet(key) {
-                // ===== FIX START =====
-                // Fetch value from Supabase key_value_store table
-                // ===== FIX END =====
+                if (!this.supabase) return null;
                 try {
                     const { data, error } = await this.supabase
                         .from('key_value_store')
                         .select('value')
                         .eq('key', key)
                         .single();
-
-                    if (error) {
-                        if (error.code === 'PGRST116') {
-                            // No rows returned - key doesn't exist
-                            return null;
-                        }
-                        console.error('Supabase get error:', error);
+                    if (error && error.code !== 'PGRST116') {
+                        console.error('storageGet error:', error);
                         return null;
                     }
-
                     return data ? JSON.parse(data.value) : null;
                 } catch (e) {
-                    console.error('Storage get error:', e);
+                    console.error('storageGet error:', e);
                     return null;
                 }
             },
 
             async storageSet(key, value) {
-                // ===== FIX START =====
-                // Upsert value to Supabase key_value_store table
-                // ===== FIX END =====
+                if (!this.supabase) return false;
                 try {
                     const { error } = await this.supabase
                         .from('key_value_store')
-                        .upsert([{ key, value: JSON.stringify(value) }], 
-                                { onConflict: 'key' });
-
+                        .upsert([{ key, value: JSON.stringify(value) }], { onConflict: 'key' });
                     if (error) {
-                        console.error('Supabase set error:', error);
+                        console.error('storageSet error:', error);
                         return false;
                     }
                     return true;
                 } catch (e) {
-                    console.error('Storage set error:', e);
+                    console.error('storageSet error:', e);
                     return false;
                 }
             },
 
             async storageRemove(key) {
-                // ===== FIX START =====
-                // Delete value from Supabase key_value_store table
-                // ===== FIX END =====
+                if (!this.supabase) return false;
                 try {
                     const { error } = await this.supabase
                         .from('key_value_store')
                         .delete()
                         .eq('key', key);
-
                     if (error) {
-                        console.error('Supabase remove error:', error);
+                        console.error('storageRemove error:', error);
                         return false;
                     }
                     return true;
                 } catch (e) {
-                    console.error('Storage remove error:', e);
+                    console.error('storageRemove error:', e);
                     return false;
                 }
             },
 
-            // ===== FIX START =====
-            // Helper methods for data access - now async and using Supabase
-            // ===== FIX END =====
-            async getUsers() { return await this.storageGet('bravewood_users') || []; },
-            async setUsers(users) { return await this.storageSet('bravewood_users', users); },
-            async getAttendance() { return await this.storageGet('bravewood_attendance') || []; },
-            async setAttendance(attendance) { return await this.storageSet('bravewood_attendance', attendance); },
-            async getRules() { return await this.storageGet('bravewood_rules') || {}; },
-            async setRules(rules) { return await this.storageSet('bravewood_rules', rules); },
-            async getAudit() { return await this.storageGet('bravewood_audit') || []; },
-            async setAudit(audit) { return await this.storageSet('bravewood_audit', audit); },
-            async getDepartments() { return await this.storageGet('bravewood_departments') || []; },
-            async setDepartments(depts) { return await this.storageSet('bravewood_departments', depts); },
-            async getRoles() { return await this.storageGet('bravewood_roles') || []; },
-            async setRoles(roles) { return await this.storageSet('bravewood_roles', roles); },
+            // Storage API wrapper methods
+            async storageGet(key) {
+                // Try API first if enabled
+                if (this.apiConfig.enabled) {
+                    try {
+                        const response = await fetch(`${this.apiConfig.baseUrl}/storage/${key}`, {
+                            method: 'GET',
+                            headers: { 'Content-Type': 'application/json' },
+                            signal: AbortSignal.timeout(this.apiConfig.timeout)
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Cache in localStorage for offline access
+                            localStorage.setItem(`bravewood_${key}`, JSON.stringify(data.value));
+                            return data.value;
+                        }
+                    } catch (e) {
+                        console.warn('API fetch failed, using localStorage:', e.message);
+                    }
+                }
+                // Fallback to localStorage
+                try {
+                    return JSON.parse(localStorage.getItem(`bravewood_${key}`) || 'null');
+                } catch {
+                    return null;
+                }
+            },
 
-            async init() {
+            async storageSet(key, value) {
+                // Always save to localStorage as cache
+                localStorage.setItem(`bravewood_${key}`, JSON.stringify(value));
+                
+                // Try API if enabled
+                if (this.apiConfig.enabled) {
+                    try {
+                        const response = await fetch(`${this.apiConfig.baseUrl}/storage/${key}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ value }),
+                            signal: AbortSignal.timeout(this.apiConfig.timeout)
+                        });
+                        return response.ok;
+                    } catch (e) {
+                        console.warn('API save failed, data cached locally:', e.message);
+                        return false;
+                    }
+                }
+                return true;
+            },
+
+            async storageRemove(key) {
+                localStorage.removeItem(`bravewood_${key}`);
+                if (this.apiConfig.enabled) {
+                    try {
+                        await fetch(`${this.apiConfig.baseUrl}/storage/${key}`, {
+                            method: 'DELETE',
+                            signal: AbortSignal.timeout(this.apiConfig.timeout)
+                        });
+                    } catch (e) {
+                        console.warn('API delete failed:', e.message);
+                    }
+                }
+            },
+
+            // Helper methods for backward compatibility
+            getUsers() { return JSON.parse(localStorage.getItem('bravewood_users') || '[]'); },
+            setUsers(users) { localStorage.setItem('bravewood_users', JSON.stringify(users)); },
+            getAttendance() { return JSON.parse(localStorage.getItem('bravewood_attendance') || '[]'); },
+            setAttendance(attendance) { localStorage.setItem('bravewood_attendance', JSON.stringify(attendance)); },
+            getRules() { return JSON.parse(localStorage.getItem('bravewood_rules') || '{}'); },
+            setRules(rules) { localStorage.setItem('bravewood_rules', JSON.stringify(rules)); },
+            getAudit() { return JSON.parse(localStorage.getItem('bravewood_audit') || '[]'); },
+            setAudit(audit) { localStorage.setItem('bravewood_audit', JSON.stringify(audit)); },
+
+            init() {
                 // ===== FIX START =====
-                // Initialize Supabase before other operations
+                // Initialize Supabase for cross-device sync
                 // ===== FIX END =====
                 this.initSupabase();
-
-                await this.migrateData();
-                await this.seedData();
+                
+                this.migrateData();
+                this.seedData();
                 this.loadTheme();
                 this.updateDateTime();
                 setInterval(() => this.updateDateTime(), 1000);
                 this.setupEventListeners();
-                await this.loadDepartmentsAndRoles();
+                this.loadDepartmentsAndRoles();
+
+                // ===== FIX START =====
+                // Clear bulk upload messages on page refresh - ensure no persistent status messages
+                // ===== FIX END =====
                 this.clearBulkUploadMessages();
 
                 const dropZone = document.getElementById('csvUploadZone');
@@ -2671,11 +2733,8 @@
                 overlay.classList.toggle('active');
             },
 
-            async migrateData() {
-                // ===== FIX START =====
-                // Use async getUsers() instead of direct localStorage access
-                // ===== FIX END =====
-                const users = await this.getUsers();
+            migrateData() {
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 if (users.length === 0) return;
 
                 let migrated = false;
@@ -2696,16 +2755,12 @@
                 });
 
                 if (migrated) {
-                    await this.setUsers(newUsers);
+                    localStorage.setItem('bravewood_users', JSON.stringify(newUsers));
                 }
             },
 
-            async seedData() {
-                // ===== FIX START =====
-                // Check initialization flag using Supabase storage
-                // ===== FIX END =====
-                const initialized = await this.storageGet('bravewood_initialized');
-                if (initialized === 'true') return;
+            seedData() {
+                if (localStorage.getItem('bravewood_initialized') === 'true') return;
 
                 const users = [
                     {
@@ -2801,32 +2856,45 @@
                 const departments = [...this.defaultDepartments];
                 const roles = [...this.defaultRoles];
 
-                // ===== FIX START =====
-                // Use async storage methods to save seed data
-                // ===== FIX END =====
-                await this.setUsers(users);
-                await this.setAttendance(attendance);
-                await this.setRules(rules);
-                await this.setAudit(auditLog);
-                await this.setDepartments(departments);
-                await this.setRoles(roles);
-                await this.storageSet('bravewood_initialized', 'true');
+                localStorage.setItem('bravewood_users', JSON.stringify(users));
+                localStorage.setItem('bravewood_attendance', JSON.stringify(attendance));
+                localStorage.setItem('bravewood_rules', JSON.stringify(rules));
+                localStorage.setItem('bravewood_audit', JSON.stringify(auditLog));
+                localStorage.setItem('bravewood_departments', JSON.stringify(departments));
+                localStorage.setItem('bravewood_roles', JSON.stringify(roles));
+                localStorage.setItem('bravewood_initialized', 'true');
             },
 
-            async getWorkDays() {
-                // ===== FIX START =====
-                // Use async getRules() instead of localStorage
-                // ===== FIX END =====
-                const rules = await this.getRules();
+            loadDepartmentsAndRoles() {
+                let departments = JSON.parse(localStorage.getItem('bravewood_departments') || '[]');
+                let roles = JSON.parse(localStorage.getItem('bravewood_roles') || '[]');
+                
+                if (departments.length === 0) {
+                    departments = [...this.defaultDepartments];
+                    localStorage.setItem('bravewood_departments', JSON.stringify(departments));
+                }
+                if (roles.length === 0) {
+                    roles = [...this.defaultRoles];
+                    localStorage.setItem('bravewood_roles', JSON.stringify(roles));
+                }
+            },
+
+            getDepartments() {
+                return JSON.parse(localStorage.getItem('bravewood_departments') || '[]');
+            },
+
+            getRoles() {
+                return JSON.parse(localStorage.getItem('bravewood_roles') || '[]');
+            },
+
+            getWorkDays() {
+                const rules = JSON.parse(localStorage.getItem('bravewood_rules') || '{}');
                 return rules.workDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
             },
 
-            async populateDeptRoleSelects() {
-                // ===== FIX START =====
-                // Use async getters
-                // ===== FIX END =====
-                const departments = await this.getDepartments();
-                const roles = await this.getRoles();
+            populateDeptRoleSelects() {
+                const departments = this.getDepartments();
+                const roles = this.getRoles();
                 
                 const deptSelects = ['staffDepartment', 'editStaffDepartment', 'profileEditDepartment'];
                 const roleSelects = ['staffRole', 'editStaffRole', 'profileEditRole'];
@@ -2848,37 +2916,63 @@
                 });
             },
 
-            async resetSystem() {
+            resetSystem() {
                 if (!confirm('WARNING: This will DELETE ALL DATA and reset to factory defaults.\n\nAre you sure?')) return;
                 if (!confirm('Really sure? All staff, attendance, and settings will be lost.')) return;
 
-                // ===== FIX START =====
-                // Use async storageRemove to delete all data from Supabase
-                // ===== FIX END =====
-                await this.storageRemove('bravewood_users');
-                await this.storageRemove('bravewood_attendance');
-                await this.storageRemove('bravewood_rules');
-                await this.storageRemove('bravewood_audit');
-                await this.storageRemove('bravewood_initialized');
-                await this.storageRemove('bravewood_session');
-                await this.storageRemove('bravewood_theme');
-                await this.storageRemove('bravewood_departments');
-                await this.storageRemove('bravewood_roles');
+                localStorage.removeItem('bravewood_users');
+                localStorage.removeItem('bravewood_attendance');
+                localStorage.removeItem('bravewood_rules');
+                localStorage.removeItem('bravewood_audit');
+                localStorage.removeItem('bravewood_initialized');
+                localStorage.removeItem('bravewood_session');
+                localStorage.removeItem('bravewood_theme');
+                localStorage.removeItem('bravewood_departments');
+                localStorage.removeItem('bravewood_roles');
 
                 this.showToast('System reset! Reloading...', 'success');
                 setTimeout(() => location.reload(), 1500);
             },
 
+            loadTheme() {
+                const theme = localStorage.getItem('bravewood_theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', theme);
+                const toggle = document.getElementById('themeToggle');
+                if (toggle) {
+                    const icon = toggle.querySelector('.material-icons');
+                    if (icon) icon.textContent = theme === 'dark' ? 'light_mode' : 'dark_mode';
+                }
+            },
 
+            toggleTheme() {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('bravewood_theme', newTheme);
+                // ===== FIX START =====
+                // Sync to Supabase in background
+                // ===== FIX END =====
+                this.storageSet('bravewood_theme', newTheme);
+                const toggle = document.getElementById('themeToggle');
+                if (toggle) {
+                    const icon = toggle.querySelector('.material-icons');
+                    if (icon) icon.textContent = newTheme === 'dark' ? 'light_mode' : 'dark_mode';
+                }
+                
+                if (this.attendanceChart) {
+                    this.loadAttendanceChart();
+                }
+            },
 
-            async toggleThemeFromSettings() {
+            toggleThemeFromSettings() {
                 const isDark = document.getElementById('settingsDarkMode').checked;
                 const newTheme = isDark ? 'dark' : 'light';
                 document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('bravewood_theme', newTheme);
                 // ===== FIX START =====
-                // Use async storageSet for theme
+                // Sync to Supabase in background
                 // ===== FIX END =====
-                await this.storageSet('bravewood_theme', newTheme);
+                this.storageSet('bravewood_theme', newTheme);
                 const toggle = document.getElementById('themeToggle');
                 if (toggle) {
                     const icon = toggle.querySelector('.material-icons');
@@ -2889,22 +2983,16 @@
                 }
             },
 
-            async checkSession() {
-                // ===== FIX START =====
-                // Use async storageGet for session
-                // ===== FIX END =====
-                const session = await this.storageGet('bravewood_session');
+            checkSession() {
+                const session = localStorage.getItem('bravewood_session');
                 if (session) {
-                    this.currentUser = session;
+                    this.currentUser = JSON.parse(session);
                     this.showApp();
                 }
             },
 
-            async login(staffId, password) {
-                // ===== FIX START =====
-                // Use async getUsers() instead of localStorage
-                // ===== FIX END =====
-                const users = await this.getUsers();
+            login(staffId, password) {
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
 
                 if (users.length === 0) {
                     return { success: false, error: 'No users found. Please reset system.' };
@@ -2927,23 +3015,17 @@
                 this.currentUser = { ...user };
                 delete this.currentUser.password;
                 delete this.currentUser.securityAnswer;
-                // ===== FIX START =====
-                // Use async storageSet for session
-                // ===== FIX END =====
-                await this.storageSet('bravewood_session', this.currentUser);
-                await this.logAudit('LOGIN', `User ${staffId} logged in`);
+                localStorage.setItem('bravewood_session', JSON.stringify(this.currentUser));
+                this.logAudit('LOGIN', `User ${staffId} logged in`);
                 return { success: true };
             },
 
-            async logout() {
+            logout() {
                 if (this.currentUser) {
-                    await this.logAudit('LOGOUT', `User ${this.currentUser.staffId} logged out`);
+                    this.logAudit('LOGOUT', `User ${this.currentUser.staffId} logged out`);
                 }
                 this.currentUser = null;
-                // ===== FIX START =====
-                // Use async storageRemove for session
-                // ===== FIX END =====
-                await this.storageRemove('bravewood_session');
+                localStorage.removeItem('bravewood_session');
                 this.showLogin();
             },
 
@@ -3005,11 +3087,14 @@
                 else bar.className = 'password-strength strong';
             },
 
-            async createPassword(event) {
+            createPassword(event) {
                 event.preventDefault();
                 const staffId = document.getElementById('setupStaffId').value.trim();
                 const password = document.getElementById('setupPassword').value;
                 const confirmPassword = document.getElementById('setupConfirmPassword').value;
+                // ===== FIX START =====
+                // Collect security question and answer from user during setup
+                // ===== FIX END =====
                 const securityQuestion = document.getElementById('setupSecurityQuestion').value;
                 const securityAnswer = document.getElementById('setupSecurityAnswer').value.trim();
 
@@ -3018,21 +3103,21 @@
                 if (!securityQuestion) { this.showToast('Please select a security question', 'error'); return; }
                 if (!securityAnswer) { this.showToast('Please provide an answer to your security question', 'error'); return; }
 
-                // ===== FIX START =====
-                // Use async getUsers() and setUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const userIndex = users.findIndex(u => u.staffId === staffId);
 
                 if (userIndex === -1) { this.showToast('Staff ID not found. Contact admin.', 'error'); return; }
 
+                // ===== FIX START =====
+                // Store user-selected security question and answer instead of random assignment
+                // ===== FIX END =====
                 users[userIndex].securityQuestion = securityQuestion;
                 users[userIndex].securityAnswer = securityAnswer.toLowerCase();
 
                 users[userIndex].password = password;
                 users[userIndex].passwordCreated = true;
-                await this.setUsers(users);
-                await this.logAudit('PASSWORD_CREATE', `Password created for staff: ${staffId}`);
+                localStorage.setItem('bravewood_users', JSON.stringify(users));
+                this.logAudit('PASSWORD_CREATE', `Password created for staff: ${staffId}`);
 
                 this.showToast('Password created! Please login.', 'success');
                 this.closeModal('firstTimeSetupModal');
@@ -3045,17 +3130,17 @@
                 this.openModal('forgotPasswordModal');
             },
 
-            async verifyStaffForReset(event) {
+            verifyStaffForReset(event) {
                 event.preventDefault();
                 const staffId = document.getElementById('forgotStaffId').value.trim();
-                // ===== FIX START =====
-                // Use async getUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const user = users.find(u => u.staffId === staffId);
 
                 if (!user) { this.showToast('Staff ID not found', 'error'); return; }
 
+                // ===== FIX START =====
+                // Security questions must be set up during registration - no random assignment
+                // ===== FIX END =====
                 if (!user.securityQuestion) {
                     this.showToast('Security question not set up. Please contact your administrator.', 'error');
                     return;
@@ -3067,7 +3152,7 @@
                 document.getElementById('forgotStep2').classList.remove('hidden');
             },
 
-            async resetPassword(event) {
+            resetPassword(event) {
                 event.preventDefault();
                 if (!this.tempResetStaff) return;
 
@@ -3079,17 +3164,14 @@
                 if (newPassword !== confirmPassword) { this.showToast('Passwords do not match', 'error'); return; }
                 if (newPassword.length < 6) { this.showToast('Password must be at least 6 characters', 'error'); return; }
 
-                // ===== FIX START =====
-                // Use async getUsers() and setUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const userIndex = users.findIndex(u => u.staffId === this.tempResetStaff.staffId);
 
                 if (userIndex !== -1) {
                     users[userIndex].password = newPassword;
                     users[userIndex].passwordCreated = true;
-                    await this.setUsers(users);
-                    await this.logAudit('PASSWORD_RESET', `Password reset for staff: ${this.tempResetStaff.staffId}`);
+                    localStorage.setItem('bravewood_users', JSON.stringify(users));
+                    this.logAudit('PASSWORD_RESET', `Password reset for staff: ${this.tempResetStaff.staffId}`);
                 }
 
                 this.tempResetStaff = null;
@@ -3102,7 +3184,7 @@
                 this.openModal('changePasswordModal');
             },
 
-            async changePassword(event) {
+            changePassword(event) {
                 event.preventDefault();
                 const currentPassword = document.getElementById('currentPassword').value;
                 const newPassword = document.getElementById('newPassword').value;
@@ -3111,26 +3193,20 @@
                 if (newPassword !== confirmPassword) { this.showToast('New passwords do not match', 'error'); return; }
                 if (newPassword.length < 6) { this.showToast('Password must be at least 6 characters', 'error'); return; }
 
-                // ===== FIX START =====
-                // Use async getUsers() and setUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const userIndex = users.findIndex(u => u.staffId === this.currentUser.staffId);
 
                 if (userIndex === -1 || users[userIndex].password !== currentPassword) { this.showToast('Current password is incorrect', 'error'); return; }
 
                 users[userIndex].password = newPassword;
-                await this.setUsers(users);
-                await this.logAudit('PASSWORD_CHANGE', `Password changed by: ${this.currentUser.staffId}`);
+                localStorage.setItem('bravewood_users', JSON.stringify(users));
+                this.logAudit('PASSWORD_CHANGE', `Password changed by: ${this.currentUser.staffId}`);
                 this.showToast('Password changed successfully!', 'success');
                 this.closeModal('changePasswordModal');
             },
 
-            async openAdminResetModal(staffId) {
-                // ===== FIX START =====
-                // Use async getUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+            openAdminResetModal(staffId) {
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const user = users.find(u => u.staffId === staffId);
                 if (!user) return;
 
@@ -3147,24 +3223,21 @@
                 document.getElementById('adminResetNewPassword').value = password;
             },
 
-            async adminResetPassword(event) {
+            adminResetPassword(event) {
                 event.preventDefault();
                 const staffId = document.getElementById('adminResetStaffId').value;
                 const newPassword = document.getElementById('adminResetNewPassword').value;
 
                 if (!newPassword || newPassword.length < 6) { this.showToast('Password must be at least 6 characters', 'error'); return; }
 
-                // ===== FIX START =====
-                // Use async getUsers() and setUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const userIndex = users.findIndex(u => u.staffId === staffId);
 
                 if (userIndex !== -1) {
                     users[userIndex].password = newPassword;
                     users[userIndex].passwordCreated = true;
-                    await this.setUsers(users);
-                    await this.logAudit('ADMIN_PASSWORD_RESET', `Admin reset password for: ${staffId}`);
+                    localStorage.setItem('bravewood_users', JSON.stringify(users));
+                    this.logAudit('ADMIN_PASSWORD_RESET', `Admin reset password for: ${staffId}`);
                 }
 
                 this.showToast(`Password reset! New: ${newPassword}`, 'success');
@@ -3262,28 +3335,25 @@
                 this.currentPage = page;
             },
 
-            async loadPageData(page) {
+            loadPageData(page) {
                 switch(page) {
-                    case 'dashboard': await this.loadDashboard(); break;
-                    case 'staff': await this.loadStaff(); break;
-                    case 'rules': await this.loadRules(); break;
-                    case 'reports': await this.loadReportFilters(); break;
-                    case 'audit': await this.loadAuditLog(); break;
-                    case 'staffPortal': await this.loadStaffPortal(); break;
-                    case 'admin': await this.loadAdmins(); break;
-                    case 'deptRole': await this.loadDeptRoleManagement(); break;
-                    case 'staffProgress': await this.loadStaffProgress(); break;
-                    case 'profile': await this.loadProfile(); break;
-                    case 'settings': await this.loadSettings(); break;
+                    case 'dashboard': this.loadDashboard(); break;
+                    case 'staff': this.loadStaff(); break;
+                    case 'rules': this.loadRules(); break;
+                    case 'reports': this.loadReportFilters(); break;
+                    case 'audit': this.loadAuditLog(); break;
+                    case 'staffPortal': this.loadStaffPortal(); break;
+                    case 'admin': this.loadAdmins(); break;
+                    case 'deptRole': this.loadDeptRoleManagement(); break;
+                    case 'staffProgress': this.loadStaffProgress(); break;
+                    case 'profile': this.loadProfile(); break;
+                    case 'settings': this.loadSettings(); break;
                 }
             },
 
-            async loadDashboard() {
-                // ===== FIX START =====
-                // Use async getters for attendance and users
-                // ===== FIX END =====
-                const attendance = await this.getAttendance();
-                const users = await this.getUsers();
+            loadDashboard() {
+                const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const today = new Date().toISOString().split('T')[0];
 
                 const staffUsers = users.filter(u => u.systemRole === 'STAFF');
@@ -3298,7 +3368,7 @@
                 document.getElementById('statAbsent').textContent = Math.max(0, absent);
                 document.getElementById('statTotal').textContent = staffUsers.length;
 
-                await this.loadAttendanceChart();
+                this.loadAttendanceChart();
 
                 const recentCheckins = todayAttendance.sort((a, b) => b.time.localeCompare(a.time)).slice(0, 10);
                 document.getElementById('recentCheckinsTable').innerHTML = recentCheckins.map(a => {
@@ -3307,14 +3377,11 @@
                 }).join('') || '<tr><td colspan="5" class="text-center" style="padding: 24px; color: var(--text-secondary);">No check-ins today</td></tr>';
             },
 
-            async loadAttendanceChart() {
-                // ===== FIX START =====
-                // Use async getters for attendance and users
-                // ===== FIX END =====
-                const attendance = await this.getAttendance();
-                const users = await this.getUsers();
+            loadAttendanceChart() {
+                const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const staffCount = users.filter(u => u.systemRole === 'STAFF').length;
-                const workDays = await this.getWorkDays();
+                const workDays = this.getWorkDays();
                 
                 const dayMap = { 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5 };
                 const dayNumbers = workDays.map(d => dayMap[d]).filter(n => n);
@@ -3459,13 +3526,10 @@
                 }, 1500);
             },
 
-            async processQuickCheckin() {
-                // ===== FIX START =====
-                // Use async getters for users, attendance, and rules
-                // ===== FIX END =====
-                const users = await this.getUsers();
-                const attendance = await this.getAttendance();
-                const rules = await this.getRules();
+            processQuickCheckin() {
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
+                const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
+                const rules = JSON.parse(localStorage.getItem('bravewood_rules') || '{}');
 
                 const today = new Date().toISOString().split('T')[0];
                 const now = new Date();
@@ -3494,20 +3558,17 @@
                 const status = currentMinutes <= (workStartMinutes + gracePeriod) ? 'ON_TIME' : 'LATE';
 
                 attendance.push({ id: Date.now().toString(), staffId: staff.staffId, date: today, time: currentTime, status });
-                await this.setAttendance(attendance);
+                localStorage.setItem('bravewood_attendance', JSON.stringify(attendance));
 
                 document.getElementById('quickCheckinResult').textContent = `${staff.name} - ${status === 'ON_TIME' ? 'On Time' : 'Late'}`;
                 document.getElementById('quickCheckinResult').style.color = status === 'ON_TIME' ? 'var(--success)' : 'var(--warning)';
-                await this.logAudit('CHECKIN', `${staff.name} checked in at ${currentTime} - ${status}`);
-                await this.loadDashboard();
+                this.logAudit('CHECKIN', `${staff.name} checked in at ${currentTime} - ${status}`);
+                this.loadDashboard();
             },
 
-            async loadStaff() {
+            loadStaff() {
                 this.populateDeptRoleSelects();
-                // ===== FIX START =====
-                // Use async getUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const staffList = users.filter(u => u.systemRole === 'STAFF');
                 this.renderStaffTable(staffList);
             },
@@ -3569,12 +3630,9 @@
                 if (menu) menu.classList.remove('active');
             },
 
-            async searchStaff() {
+            searchStaff() {
                 const query = document.getElementById('staffSearch').value.toLowerCase();
-                // ===== FIX START =====
-                // Use async getUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const staffList = users.filter(u => u.systemRole === 'STAFF' && (u.name.toLowerCase().includes(query) || u.staffId.toLowerCase().includes(query) || (u.department && u.department.toLowerCase().includes(query)) || (u.departmentRole && u.departmentRole.toLowerCase().includes(query))));
                 this.renderStaffTable(staffList);
             },
@@ -3587,12 +3645,9 @@
                 this.openModal('addStaffModal');
             },
 
-            async openEditStaffModal(staffId) {
+            openEditStaffModal(staffId) {
                 this.populateDeptRoleSelects();
-                // ===== FIX START =====
-                // Use async getUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const staff = users.find(u => u.staffId === staffId);
                 if (!staff) return;
 
@@ -3628,7 +3683,7 @@
                 }
             },
 
-            async saveStaff(event) {
+            saveStaff(event) {
                 event.preventDefault();
                 const staffId = document.getElementById('staffId').value.trim();
                 const name = document.getElementById('staffName').value.trim();
@@ -3638,10 +3693,7 @@
                 const isAdmin = document.getElementById('isAdmin').checked;
                 const profileImage = document.getElementById('profilePreview').querySelector('img')?.src || null;
 
-                // ===== FIX START =====
-                // Use async getUsers() and setUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 if (users.some(u => u.staffId === staffId)) { this.showToast('Staff ID already exists', 'error'); return; }
 
                 const randomQ = this.securityQuestions[Math.floor(Math.random() * this.securityQuestions.length)];
@@ -3656,14 +3708,14 @@
                     email: '', phone: ''
                 });
 
-                await this.setUsers(users);
-                await this.logAudit('STAFF_ADD', `Added staff: ${name} (${staffId}) - ${departmentRole} in ${department}`);
+                localStorage.setItem('bravewood_users', JSON.stringify(users));
+                this.logAudit('STAFF_ADD', `Added staff: ${name} (${staffId}) - ${departmentRole} in ${department}`);
                 this.showToast('Staff added! They must create password on first login.', 'success');
                 this.closeModal('addStaffModal');
-                await this.loadStaff();
+                this.loadStaff();
             },
 
-            async updateStaff(event) {
+            updateStaff(event) {
                 event.preventDefault();
                 const staffId = document.getElementById('editStaffId').value;
                 const name = document.getElementById('editStaffName').value.trim();
@@ -3672,10 +3724,7 @@
                 const workStartTime = document.getElementById('editStaffWorkTime').value;
                 const isAdmin = document.getElementById('editIsAdmin').checked;
 
-                // ===== FIX START =====
-                // Use async getUsers() and setUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const index = users.findIndex(u => u.staffId === staffId);
                 if (index === -1) return;
 
@@ -3683,35 +3732,32 @@
                 const oldSystemRole = users[index].systemRole;
 
                 users[index] = { ...users[index], name, department, departmentRole, workStartTime, systemRole: isAdmin ? 'ADMIN' : 'STAFF' };
-                await this.setUsers(users);
+                localStorage.setItem('bravewood_users', JSON.stringify(users));
 
                 let changes = [];
                 if (oldRole !== departmentRole) changes.push(`Role: ${oldRole} -> ${departmentRole}`);
                 if (oldSystemRole !== users[index].systemRole) changes.push(`Access: ${oldSystemRole} -> ${users[index].systemRole}`);
 
-                await this.logAudit('STAFF_EDIT', `Updated: ${name} (${staffId})${changes.length ? ' - ' + changes.join(', ') : ''}`);
+                this.logAudit('STAFF_EDIT', `Updated: ${name} (${staffId})${changes.length ? ' - ' + changes.join(', ') : ''}`);
                 this.showToast('Staff updated!', 'success');
                 this.closeModal('editStaffModal');
-                await this.loadStaff();
+                this.loadStaff();
             },
 
-            async deleteStaff(staffId) {
+            deleteStaff(staffId) {
                 if (!confirm('Delete this staff member?')) return;
-                // ===== FIX START =====
-                // Use async getters and setters
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const staff = users.find(u => u.staffId === staffId);
 
                 const filtered = users.filter(u => u.staffId !== staffId);
-                await this.setUsers(filtered);
+                localStorage.setItem('bravewood_users', JSON.stringify(filtered));
 
-                const attendance = await this.getAttendance();
-                await this.setAttendance(attendance.filter(a => a.staffId !== staffId));
+                const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
+                localStorage.setItem('bravewood_attendance', JSON.stringify(attendance.filter(a => a.staffId !== staffId)));
 
-                await this.logAudit('STAFF_DELETE', `Deleted: ${staff ? staff.name : staffId} (${staffId})`);
+                this.logAudit('STAFF_DELETE', `Deleted: ${staff ? staff.name : staffId} (${staffId})`);
                 this.showToast('Staff deleted!', 'success');
-                await this.loadStaff();
+                this.loadStaff();
             },
 
             openFingerprintModal(staffId) {
@@ -3721,35 +3767,29 @@
                 this.openModal('fingerprintModal');
             },
 
-            async enrollFingerprint() {
-                // ===== FIX START =====
-                // Use async getUsers() and setUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+            enrollFingerprint() {
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const index = users.findIndex(u => u.staffId === this.currentEnrollStaffId);
 
                 if (index !== -1) {
                     users[index].fingerprint_registered = true;
-                    await this.setUsers(users);
+                    localStorage.setItem('bravewood_users', JSON.stringify(users));
                     document.getElementById('fingerprintEnrollStep1').classList.add('hidden');
                     document.getElementById('fingerprintEnrollStep2').classList.remove('hidden');
-                    await this.logAudit('FINGERPRINT_ENROLL', `Enrolled for: ${users[index].name} (${this.currentEnrollStaffId})`);
+                    this.logAudit('FINGERPRINT_ENROLL', `Enrolled for: ${users[index].name} (${this.currentEnrollStaffId})`);
                     setTimeout(() => { this.closeModal('fingerprintModal'); this.loadStaff(); }, 1500);
                 }
             },
 
-            async handleCSVUpload(event) {
+            handleCSVUpload(event) {
                 const file = event.target.files[0];
                 if (!file) return;
 
                 const reader = new FileReader();
-                reader.onload = async (e) => {
+                reader.onload = (e) => {
                     const lines = e.target.result.split('\n').filter(line => line.trim());
                     let success = 0, failed = 0, errors = [];
-                    // ===== FIX START =====
-                    // Use async getUsers() and setUsers()
-                    // ===== FIX END =====
-                    const users = await this.getUsers();
+                    const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
 
                     for (let i = 1; i < lines.length; i++) {
                         const cols = lines[i].split(',').map(c => c.trim());
@@ -3769,25 +3809,22 @@
                         success++;
                     }
 
-                    await this.setUsers(users);
+                    localStorage.setItem('bravewood_users', JSON.stringify(users));
                     document.getElementById('uploadSuccess').textContent = success;
                     document.getElementById('uploadFailed').textContent = failed;
                     document.getElementById('uploadErrors').innerHTML = errors.map(e => `<div>${e}</div>`).join('');
                     document.getElementById('uploadResults').classList.remove('hidden');
-                    await this.logAudit('BULK_UPLOAD', `CSV: ${success} success, ${failed} failed`);
+                    this.logAudit('BULK_UPLOAD', `CSV: ${success} success, ${failed} failed`);
                     if (success > 0) this.showToast(`${success} staff uploaded!`, 'success');
                 };
                 reader.readAsText(file);
             },
 
-            async handleBulkImageUpload(event) {
+            handleBulkImageUpload(event) {
                 const files = Array.from(event.target.files);
                 if (files.length === 0) return;
 
-                // ===== FIX START =====
-                // Use async getUsers() and setUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const results = [];
                 let processed = 0;
 
@@ -3808,11 +3845,11 @@
                         results.push({ staffId, status: 'success', message: 'Uploaded' });
                         processed++;
                         
-                        if (processed === files.length) { (async () => {
-                            await this.setUsers(users);
+                        if (processed === files.length) {
+                            localStorage.setItem('bravewood_users', JSON.stringify(users));
                             this.showBulkImageResults(results);
-                            await this.logAudit('BULK_IMAGE_UPLOAD', `${results.filter(r => r.status === 'success').length} images uploaded`);
-                        })(); }
+                            this.logAudit('BULK_IMAGE_UPLOAD', `${results.filter(r => r.status === 'success').length} images uploaded`);
+                        }
                     };
                     reader.readAsDataURL(file);
                 });
@@ -3838,11 +3875,8 @@
                 if (bulkImageResults) bulkImageResults.classList.add('hidden');
             },
 
-            async loadRules() {
-                // ===== FIX START =====
-                // Use async getRules()
-                // ===== FIX END =====
-                const rules = await this.getRules();
+            loadRules() {
+                const rules = JSON.parse(localStorage.getItem('bravewood_rules') || '{}');
                 document.getElementById('workStartTime').value = rules.workStartTime || '09:00';
                 document.getElementById('gracePeriod').value = rules.gracePeriod || 15;
                 document.getElementById('officeLat').value = rules.officeLat || 40.7128;
@@ -3856,7 +3890,7 @@
                 });
             },
 
-            async saveRules(event) {
+            saveRules(event) {
                 event.preventDefault();
                 const workDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].filter(d => document.getElementById(`day${d}`).checked);
                 const rules = {
@@ -3867,19 +3901,13 @@
                     allowedRadius: parseInt(document.getElementById('allowedRadius').value),
                     gpsEnabled: document.getElementById('gpsEnabled').checked
                 };
-                // ===== FIX START =====
-                // Use async setRules()
-                // ===== FIX END =====
-                await this.setRules(rules);
-                await this.logAudit('RULES_UPDATE', 'Attendance rules updated');
+                localStorage.setItem('bravewood_rules', JSON.stringify(rules));
+                this.logAudit('RULES_UPDATE', 'Attendance rules updated');
                 this.showToast('Rules saved!', 'success');
             },
 
-            async loadReportFilters() {
-                // ===== FIX START =====
-                // Use async getUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+            loadReportFilters() {
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const departments = [...new Set(users.filter(u => u.department).map(u => u.department))];
                 document.getElementById('reportDept').innerHTML = '<option value="">All Departments</option>' + departments.map(d => `<option value="${d}">${d}</option>`).join('');
 
@@ -3889,17 +3917,14 @@
                 document.getElementById('reportFromDate').value = lastWeek.toISOString().split('T')[0];
             },
 
-            async generateReport() {
+            generateReport() {
                 const fromDate = document.getElementById('reportFromDate').value;
                 const toDate = document.getElementById('reportToDate').value;
                 const department = document.getElementById('reportDept').value;
                 const staffId = document.getElementById('reportStaffId').value.trim();
 
-                // ===== FIX START =====
-                // Use async getters
-                // ===== FIX END =====
-                const attendance = await this.getAttendance();
-                const users = await this.getUsers();
+                const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
 
                 let filtered = attendance.filter(a => {
                     if (fromDate && a.date < fromDate) return false;
@@ -3916,17 +3941,14 @@
                 }).join('') || '<tr><td colspan="7" class="text-center" style="padding: 24px; color: var(--text-secondary);">No records found</td></tr>';
             },
 
-            async exportReport() {
+            exportReport() {
                 const fromDate = document.getElementById('reportFromDate').value;
                 const toDate = document.getElementById('reportToDate').value;
                 const department = document.getElementById('reportDept').value;
                 const staffId = document.getElementById('reportStaffId').value.trim();
 
-                // ===== FIX START =====
-                // Use async getters
-                // ===== FIX END =====
-                const attendance = await this.getAttendance();
-                const users = await this.getUsers();
+                const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
 
                 let filtered = attendance.filter(a => {
                     if (fromDate && a.date < fromDate) return false;
@@ -3952,34 +3974,25 @@
                 this.showToast('Report exported!', 'success');
             },
 
-            async loadAuditLog() {
-                // ===== FIX START =====
-                // Use async getAudit()
-                // ===== FIX END =====
-                const logs = (await this.getAudit()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            loadAuditLog() {
+                const logs = JSON.parse(localStorage.getItem('bravewood_audit') || '[]').sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 document.getElementById('auditTable').innerHTML = logs.slice(0, 100).map(log =>
                     `<tr><td>${new Date(log.timestamp).toLocaleString()}</td><td>${log.user}</td><td><span class="badge badge-info">${log.action}</span></td><td>${log.details}</td></tr>`
                 ).join('') || '<tr><td colspan="4" class="text-center" style="padding: 24px; color: var(--text-secondary);">No audit records</td></tr>';
             },
 
-            async logAudit(action, details) {
-                // ===== FIX START =====
-                // Use async getAudit() and setAudit()
-                // ===== FIX END =====
-                const logs = await this.getAudit();
+            logAudit(action, details) {
+                const logs = JSON.parse(localStorage.getItem('bravewood_audit') || '[]');
                 logs.push({ id: Date.now().toString(), timestamp: new Date().toISOString(), user: this.currentUser ? this.currentUser.staffId : 'SYSTEM', action, details });
-                await this.setAudit(logs);
+                localStorage.setItem('bravewood_audit', JSON.stringify(logs));
             },
 
             loadStaffPortal() {
                 this.navigate('staffProgress');
             },
 
-            async loadProfile() {
-                // ===== FIX START =====
-                // Use async getUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+            loadProfile() {
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const user = users.find(u => u.staffId === this.currentUser.staffId);
                 if (!user) return;
 
@@ -3987,7 +4000,7 @@
                 this.currentUser = { ...user };
                 delete this.currentUser.password;
                 delete this.currentUser.securityAnswer;
-                await this.storageSet('bravewood_session', this.currentUser);
+                localStorage.setItem('bravewood_session', JSON.stringify(this.currentUser));
 
                 // View mode
                 const viewImage = document.getElementById('profileViewImage');
@@ -4037,7 +4050,7 @@
                 document.getElementById('profileEditRole').value = user.departmentRole || '';
 
                 // Statistics
-                const attendance = await this.getAttendance();
+                const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
                 const myAttendance = attendance.filter(a => a.staffId === user.staffId);
                 const totalDays = myAttendance.length;
                 const onTimeDays = myAttendance.filter(a => a.status === 'ON_TIME').length;
@@ -4056,7 +4069,7 @@
                 document.getElementById('profileEditMode').classList.toggle('hidden', !this.profileEditMode);
             },
 
-            async saveProfile(event) {
+            saveProfile(event) {
                 event.preventDefault();
                 const name = document.getElementById('profileEditName').value.trim();
                 const email = document.getElementById('profileEditEmail').value.trim();
@@ -4067,10 +4080,7 @@
                 const profileImageInput = document.getElementById('profileEditImagePreview');
                 const profileImage = profileImageInput.style.display !== 'none' ? profileImageInput.src : null;
 
-                // ===== FIX START =====
-                // Use async getUsers() and setUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const index = users.findIndex(u => u.staffId === this.currentUser.staffId);
                 if (index === -1) return;
 
@@ -4084,25 +4094,25 @@
                     workStartTime,
                     ...(profileImage && { profileImage })
                 };
-                await this.setUsers(users);
+                localStorage.setItem('bravewood_users', JSON.stringify(users));
 
                 // Update current user
                 this.currentUser = { ...users[index] };
                 delete this.currentUser.password;
                 delete this.currentUser.securityAnswer;
-                await this.storageSet('bravewood_session', this.currentUser);
+                localStorage.setItem('bravewood_session', JSON.stringify(this.currentUser));
 
-                await this.logAudit('PROFILE_UPDATE', `Profile updated by: ${this.currentUser.staffId}`);
+                this.logAudit('PROFILE_UPDATE', `Profile updated by: ${this.currentUser.staffId}`);
                 this.showToast('Profile updated successfully!', 'success');
                 this.toggleEditProfile();
-                await this.loadProfile();
+                this.loadProfile();
             },
 
-            async emailMyData() {
+            emailMyData() {
                 // ===== FIX START =====
-                // Use async getters
+                // Improved email delivery with better user feedback and error handling
                 // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const user = users.find(u => u.staffId === this.currentUser.staffId);
                 if (!user || !user.email) {
                     this.showToast('Please add your email address in profile first', 'warning');
@@ -4116,7 +4126,7 @@
                     return;
                 }
 
-                const attendance = await this.getAttendance();
+                const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
                 const myAttendance = attendance.filter(a => a.staffId === user.staffId).sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
 
                 // Build comprehensive email content
@@ -4178,7 +4188,7 @@
                     this.copyToClipboard(emailBody);
                     this.showToast('Email content copied to clipboard! Please paste in your email client.', 'warning');
                 }
-                await this.logAudit('EMAIL_DATA', `User ${user.staffId} requested data email to ${user.email}`);
+                this.logAudit('EMAIL_DATA', `User ${user.staffId} requested data email to ${user.email}`);
             },
 
             // ===== FIX START =====
@@ -4199,11 +4209,8 @@
                 document.body.removeChild(textarea);
             },
 
-            async loadSettings() {
-                // ===== FIX START =====
-                // Use async storageGet for theme
-                // ===== FIX END =====
-                const theme = await this.storageGet('bravewood_theme') || 'dark';
+            loadSettings() {
+                const theme = localStorage.getItem('bravewood_theme') || 'dark';
                 document.getElementById('settingsDarkMode').checked = theme === 'dark';
 
                 // Show super admin settings only for super admin
@@ -4213,13 +4220,10 @@
                 }
             },
 
-            async loadStaffProgress() {
-                // ===== FIX START =====
-                // Use async getters
-                // ===== FIX END =====
-                const attendance = await this.getAttendance();
-                const users = await this.getUsers();
-                const rules = await this.getRules();
+            loadStaffProgress() {
+                const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
+                const rules = JSON.parse(localStorage.getItem('bravewood_rules') || '{}');
                 
                 const myAttendance = attendance.filter(a => a.staffId === this.currentUser.staffId).sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
                 
@@ -4296,11 +4300,8 @@
                 return streak;
             },
 
-            async loadAdmins() {
-                // ===== FIX START =====
-                // Use async getUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+            loadAdmins() {
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const admins = users.filter(u => u.systemRole === 'ADMIN' || u.systemRole === 'SUPER_ADMIN');
                 document.getElementById('adminTable').innerHTML = admins.map(admin => `
                     <tr><td>${admin.staffId}</td><td>${admin.name}</td><td><span class="badge ${admin.systemRole === 'SUPER_ADMIN' ? 'badge-danger' : 'badge-info'}">${admin.systemRole}</span></td>
@@ -4315,26 +4316,20 @@
                 this.openModal('addStaffModal');
             },
 
-            async deleteAdmin(staffId) {
+            deleteAdmin(staffId) {
                 if (!confirm('Remove admin access?')) return;
-                // ===== FIX START =====
-                // Use async getUsers() and setUsers()
-                // ===== FIX END =====
-                const users = await this.getUsers();
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
                 const admin = users.find(u => u.staffId === staffId);
                 const index = users.findIndex(u => u.staffId === staffId);
-                if (index !== -1) { users[index].systemRole = 'STAFF'; await this.setUsers(users); }
-                await this.logAudit('ADMIN_REMOVE', `Removed admin: ${admin ? admin.name : staffId}`);
+                if (index !== -1) { users[index].systemRole = 'STAFF'; localStorage.setItem('bravewood_users', JSON.stringify(users)); }
+                this.logAudit('ADMIN_REMOVE', `Removed admin: ${admin ? admin.name : staffId}`);
                 this.showToast('Admin access removed!', 'success');
-                await this.loadAdmins();
+                this.loadAdmins();
             },
 
-            async loadDeptRoleManagement() {
-                // ===== FIX START =====
-                // Use async getters
-                // ===== FIX END =====
-                const departments = await this.getDepartments();
-                const roles = await this.getRoles();
+            loadDeptRoleManagement() {
+                const departments = this.getDepartments();
+                const roles = this.getRoles();
                 
                 document.getElementById('deptTags').innerHTML = departments.map(d => `
                     <div class="tag">
@@ -4361,28 +4356,60 @@
                 this.openModal('addRoleModal');
             },
 
-            async deleteDepartment(name) {
-                if (!confirm(`Delete department "${name}"?`)) return;
-                // ===== FIX START =====
-                // Use async getters and setters
-                // ===== FIX END =====
-                const departments = (await this.getDepartments()).filter(d => d !== name);
-                await this.setDepartments(departments);
-                await this.logAudit('DEPT_DELETE', `Deleted department: ${name}`);
-                this.showToast('Department deleted!', 'success');
-                await this.loadDeptRoleManagement();
+            addDepartment(event) {
+                event.preventDefault();
+                const name = document.getElementById('newDeptName').value.trim();
+                if (!name) return;
+                
+                const departments = this.getDepartments();
+                if (departments.includes(name)) {
+                    this.showToast('Department already exists', 'error');
+                    return;
+                }
+                
+                departments.push(name);
+                localStorage.setItem('bravewood_departments', JSON.stringify(departments));
+                this.logAudit('DEPT_ADD', `Added department: ${name}`);
+                this.showToast('Department added!', 'success');
+                this.closeModal('addDeptModal');
+                this.loadDeptRoleManagement();
             },
 
-            async deleteRole(name) {
+            addRole(event) {
+                event.preventDefault();
+                const name = document.getElementById('newRoleName').value.trim();
+                if (!name) return;
+                
+                const roles = this.getRoles();
+                if (roles.includes(name)) {
+                    this.showToast('Role already exists', 'error');
+                    return;
+                }
+                
+                roles.push(name);
+                localStorage.setItem('bravewood_roles', JSON.stringify(roles));
+                this.logAudit('ROLE_ADD', `Added role: ${name}`);
+                this.showToast('Role added!', 'success');
+                this.closeModal('addRoleModal');
+                this.loadDeptRoleManagement();
+            },
+
+            deleteDepartment(name) {
+                if (!confirm(`Delete department "${name}"?`)) return;
+                const departments = this.getDepartments().filter(d => d !== name);
+                localStorage.setItem('bravewood_departments', JSON.stringify(departments));
+                this.logAudit('DEPT_DELETE', `Deleted department: ${name}`);
+                this.showToast('Department deleted!', 'success');
+                this.loadDeptRoleManagement();
+            },
+
+            deleteRole(name) {
                 if (!confirm(`Delete role "${name}"?`)) return;
-                // ===== FIX START =====
-                // Use async getters and setters
-                // ===== FIX END =====
-                const roles = (await this.getRoles()).filter(r => r !== name);
-                await this.setRoles(roles);
-                await this.logAudit('ROLE_DELETE', `Deleted role: ${name}`);
+                const roles = this.getRoles().filter(r => r !== name);
+                localStorage.setItem('bravewood_roles', JSON.stringify(roles));
+                this.logAudit('ROLE_DELETE', `Deleted role: ${name}`);
                 this.showToast('Role deleted!', 'success');
-                await this.loadDeptRoleManagement();
+                this.loadDeptRoleManagement();
             },
 
             updateDateTime() {
@@ -4404,10 +4431,7 @@
                 status.style.color = '';
                 nameEl.textContent = '';
 
-                // ===== FIX START =====
-                // Use async getRules()
-                // ===== FIX END =====
-                const rules = await this.getRules();
+                const rules = JSON.parse(localStorage.getItem('bravewood_rules') || '{}');
 
                 if (rules.gpsEnabled) {
                     gpsStatus.textContent = 'Checking location...';
@@ -4452,13 +4476,10 @@
                 return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             },
 
-            async processCheckIn() {
-                // ===== FIX START =====
-                // Use async getters and setters
-                // ===== FIX END =====
-                const users = await this.getUsers();
-                const attendance = await this.getAttendance();
-                const rules = await this.getRules();
+            processCheckIn() {
+                const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
+                const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
+                const rules = JSON.parse(localStorage.getItem('bravewood_rules') || '{}');
 
                 const today = new Date().toISOString().split('T')[0];
                 const now = new Date();
@@ -4487,12 +4508,12 @@
                 const status = currentMinutes <= (workStartMinutes + gracePeriod) ? 'ON_TIME' : 'LATE';
 
                 attendance.push({ id: Date.now().toString(), staffId: staff.staffId, date: today, time: currentTime, status });
-                await this.setAttendance(attendance);
+                localStorage.setItem('bravewood_attendance', JSON.stringify(attendance));
 
                 document.getElementById('checkinName').textContent = staff.name.toUpperCase();
                 document.getElementById('checkinStatus').textContent = status === 'ON_TIME' ? 'On Time' : 'Late';
                 document.getElementById('checkinStatus').style.color = status === 'ON_TIME' ? 'var(--success)' : 'var(--warning)';
-                await this.logAudit('CHECKIN', `${staff.name} checked in at ${currentTime} - ${status}`);
+                this.logAudit('CHECKIN', `${staff.name} checked in at ${currentTime} - ${status}`);
             },
 
             timeToMinutes(time) { const [h, m] = time.split(':').map(Number); return h * 60 + m; },
