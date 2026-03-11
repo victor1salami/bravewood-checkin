@@ -1,0 +1,80 @@
+/* ============================================
+   variables.css
+   CSS custom properties, resets, base styles,
+   and font declarations
+   ============================================ */
+
+:root {
+    --primary: #030940;
+    --primary-light: #1a237e;
+    --primary-dark: #02062a;
+    --success: #107C10;
+    --warning: #E0810C;
+    --danger: #A4262C;
+    --info: #030940;
+    --neutral: #6b7280;
+    --bg: #030940;
+    --surface: rgba(255, 255, 255, 0.05);
+    --surface-hover: rgba(255, 255, 255, 0.1);
+    --text: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --border: rgba(255, 255, 255, 0.1);
+    --glass: rgba(255, 255, 255, 0.03);
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --button-bg: #F7AE12;
+    --button-text: #030940;
+    --link-color: #F7AE12;
+}
+
+[data-theme="light"] {
+    --bg: #ffffff;
+    --surface: rgba(3, 9, 64, 0.05);
+    --surface-hover: rgba(3, 9, 64, 0.1);
+    --text: #030940;
+    --text-secondary: rgba(3, 9, 64, 0.7);
+    --border: rgba(3, 9, 64, 0.1);
+    --glass: rgba(3, 9, 64, 0.02);
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    --button-bg: #030940;
+    --button-text: #ffffff;
+    --link-color: #030940;
+}
+
+/* === Reset === */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { font-size: 16px; }
+@media (max-width: 768px) { html { font-size: 14px; } }
+
+/* === Base Body === */
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    transition: all 0.3s ease;
+    overflow-x: hidden;
+    line-height: 1.5;
+    cursor: default;
+}
+
+/* Only show text cursor in input fields and textareas */
+input, textarea {
+    cursor: text;
+}
+
+/* === Material Icons Base === */
+.material-icons {
+    font-family: 'Material Icons';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+}
