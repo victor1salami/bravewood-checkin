@@ -6,7 +6,7 @@
    Depends on: auth.js, storage.js (for data)
    ============================================ */
 
-const UIMethods = {
+export const UIMethods = {
 
     toggleTheme() {
         const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
