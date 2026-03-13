@@ -8,11 +8,9 @@
 export const DashboardMethods = {
   attendanceChart: null,
 
-  loadDashboard() {
-    const attendance = JSON.parse(
-      localStorage.getItem("bravewood_attendance") || "[]",
-    );
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+  async loadDashboard() {
+    const attendance = await this.getAttendance();
+    const users = await this.getUsers();
     const today = new Date().toISOString().split("T")[0];
 
     const staffUsers = users.filter((u) => u.systemRole === "STAFF");
@@ -29,7 +27,7 @@ export const DashboardMethods = {
     document.getElementById("statAbsent").textContent = Math.max(0, absent);
     document.getElementById("statTotal").textContent = staffUsers.length;
 
-    this.loadAttendanceChart();
+    await this.loadAttendanceChart();
 
     const recentCheckins = todayAttendance
       .sort((a, b) => b.time.localeCompare(a.time))
@@ -50,13 +48,11 @@ export const DashboardMethods = {
       '<tr><td colspan="5" class="text-center" style="padding: 24px; color: var(--text-secondary);">No check-ins today</td></tr>';
   },
 
-  loadAttendanceChart() {
-    const attendance = JSON.parse(
-      localStorage.getItem("bravewood_attendance") || "[]",
-    );
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+  async loadAttendanceChart() {
+    const attendance = await this.getAttendance();
+    const users = await this.getUsers();
     const staffCount = users.filter((u) => u.systemRole === "STAFF").length;
-    const workDays = this.getWorkDays();
+    const workDays = await this.getWorkDays();
 
     const dayMap = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5 };
     const dayNumbers = workDays.map((d) => dayMap[d]).filter((n) => n);

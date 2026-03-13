@@ -20,12 +20,10 @@ export const AttendanceMethods = {
     }, 1500);
   },
 
-  processQuickCheckin() {
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
-    const attendance = JSON.parse(
-      localStorage.getItem("bravewood_attendance") || "[]",
-    );
-    const rules = JSON.parse(localStorage.getItem("bravewood_rules") || "{}");
+  async processQuickCheckin() {
+    const users = await this.getUsers();
+    const attendance = await this.getAttendance();
+    const rules = await this.getRules();
 
     const today = new Date().toISOString().split("T")[0];
     const now = new Date();
@@ -70,17 +68,17 @@ export const AttendanceMethods = {
       time: currentTime,
       status,
     });
-    localStorage.setItem("bravewood_attendance", JSON.stringify(attendance));
+    await this.setAttendance(attendance);
 
     document.getElementById("quickCheckinResult").textContent =
       `${staff.name} - ${status === "ON_TIME" ? "On Time" : "Late"}`;
     document.getElementById("quickCheckinResult").style.color =
       status === "ON_TIME" ? "var(--success)" : "var(--warning)";
-    this.logAudit(
+    await this.logAudit(
       "CHECKIN",
       `${staff.name} checked in at ${currentTime} - ${status}`,
     );
-    this.loadDashboard();
+    await this.loadDashboard();
   },
 
   async simulateFingerprintScan() {
@@ -94,7 +92,7 @@ export const AttendanceMethods = {
     status.style.color = "";
     nameEl.textContent = "";
 
-    const rules = JSON.parse(localStorage.getItem("bravewood_rules") || "{}");
+    const rules = await this.getRules();
 
     if (rules.gpsEnabled) {
       gpsStatus.textContent = "Checking location...";
@@ -126,9 +124,9 @@ export const AttendanceMethods = {
       }
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       btn.classList.remove("scanning");
-      this.processCheckIn();
+      await this.processCheckIn();
     }, 2000);
   },
 
@@ -157,12 +155,10 @@ export const AttendanceMethods = {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   },
 
-  processCheckIn() {
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
-    const attendance = JSON.parse(
-      localStorage.getItem("bravewood_attendance") || "[]",
-    );
-    const rules = JSON.parse(localStorage.getItem("bravewood_rules") || "{}");
+  async processCheckIn() {
+    const users = await this.getUsers();
+    const attendance = await this.getAttendance();
+    const rules = await this.getRules();
 
     const today = new Date().toISOString().split("T")[0];
     const now = new Date();
@@ -205,7 +201,7 @@ export const AttendanceMethods = {
       time: currentTime,
       status,
     });
-    localStorage.setItem("bravewood_attendance", JSON.stringify(attendance));
+    await this.setAttendance(attendance);
 
     document.getElementById("checkinName").textContent =
       staff.name.toUpperCase();
@@ -213,7 +209,7 @@ export const AttendanceMethods = {
       status === "ON_TIME" ? "On Time" : "Late";
     document.getElementById("checkinStatus").style.color =
       status === "ON_TIME" ? "var(--success)" : "var(--warning)";
-    this.logAudit(
+    await this.logAudit(
       "CHECKIN",
       `${staff.name} checked in at ${currentTime} - ${status}`,
     );

@@ -6,8 +6,8 @@
    ============================================ */
 
 export const ReportMethods = {
-  loadReportFilters() {
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+  async loadReportFilters() {
+    const users = await this.getUsers();
     const departments = [
       ...new Set(users.filter((u) => u.department).map((u) => u.department)),
     ];
@@ -25,16 +25,14 @@ export const ReportMethods = {
       .split("T")[0];
   },
 
-  generateReport() {
+  async generateReport() {
     const fromDate = document.getElementById("reportFromDate").value;
     const toDate = document.getElementById("reportToDate").value;
     const department = document.getElementById("reportDept").value;
     const staffId = document.getElementById("reportStaffId").value.trim();
 
-    const attendance = JSON.parse(
-      localStorage.getItem("bravewood_attendance") || "[]",
-    );
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const attendance = await this.getAttendance();
+    const users = await this.getUsers();
 
     let filtered = attendance
       .filter((a) => {
@@ -69,16 +67,14 @@ export const ReportMethods = {
       '<tr><td colspan="7" class="text-center" style="padding: 24px; color: var(--text-secondary);">No records found</td></tr>';
   },
 
-  exportReport() {
+  async exportReport() {
     const fromDate = document.getElementById("reportFromDate").value;
     const toDate = document.getElementById("reportToDate").value;
     const department = document.getElementById("reportDept").value;
     const staffId = document.getElementById("reportStaffId").value.trim();
 
-    const attendance = JSON.parse(
-      localStorage.getItem("bravewood_attendance") || "[]",
-    );
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const attendance = await this.getAttendance();
+    const users = await this.getUsers();
 
     let filtered = attendance.filter((a) => {
       if (fromDate && a.date < fromDate) return false;
@@ -108,10 +104,10 @@ export const ReportMethods = {
     this.showToast("Report exported!", "success");
   },
 
-  loadAuditLog() {
-    const logs = JSON.parse(
-      localStorage.getItem("bravewood_audit") || "[]",
-    ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  async loadAuditLog() {
+    const logs = (await this.getAudit()).sort(
+      (a, b) => new Date(b.timestamp) - new Date(a.timestamp),
+    );
     document.getElementById("auditTable").innerHTML =
       logs
         .slice(0, 100)
@@ -128,28 +124,15 @@ export const ReportMethods = {
       '<tr><td colspan="4" class="text-center" style="padding: 24px; color: var(--text-secondary);">No audit records</td></tr>';
   },
 
-  logAudit(action, details) {
-    const logs = JSON.parse(localStorage.getItem("bravewood_audit") || "[]");
-    logs.push({
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString(),
-      user: this.currentUser ? this.currentUser.staffId : "SYSTEM",
-      action,
-      details,
-    });
-    localStorage.setItem("bravewood_audit", JSON.stringify(logs));
-  },
+  // logAudit is now handled by StorageMethods
 
   loadStaffPortal() {
     this.navigate("staffProgress");
   },
 
-  loadStaffProgress() {
-    const attendance = JSON.parse(
-      localStorage.getItem("bravewood_attendance") || "[]",
-    );
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
-    const rules = JSON.parse(localStorage.getItem("bravewood_rules") || "{}");
+  async loadStaffProgress() {
+    const attendance = await this.getAttendance();
+    const rules = await this.getRules();
 
     const myAttendance = attendance
       .filter((a) => a.staffId === this.currentUser.staffId)

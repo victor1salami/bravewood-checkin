@@ -9,7 +9,7 @@ export const AuthMethods = {
   currentUser: null,
   tempResetStaff: null,
 
-  checkSession() {
+  async checkSession() {
     const session = localStorage.getItem("bravewood_session");
     if (session) {
       this.currentUser = JSON.parse(session);
@@ -17,8 +17,8 @@ export const AuthMethods = {
     }
   },
 
-  login(staffId, password) {
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+  async login(staffId, password) {
+    const users = await this.getUsers();
 
     if (users.length === 0) {
       return { success: false, error: "No users found. Please reset system." };
@@ -46,13 +46,13 @@ export const AuthMethods = {
     delete this.currentUser.password;
     delete this.currentUser.securityAnswer;
     localStorage.setItem("bravewood_session", JSON.stringify(this.currentUser));
-    this.logAudit("LOGIN", `User ${staffId} logged in`);
+    await this.logAudit("LOGIN", `User ${staffId} logged in`);
     return { success: true };
   },
 
-  logout() {
+  async logout() {
     if (this.currentUser) {
-      this.logAudit("LOGOUT", `User ${this.currentUser.staffId} logged out`);
+      await this.logAudit("LOGOUT", `User ${this.currentUser.staffId} logged out`);
     }
     this.currentUser = null;
     localStorage.removeItem("bravewood_session");
@@ -120,7 +120,7 @@ export const AuthMethods = {
     else bar.className = "password-strength strong";
   },
 
-  createPassword(event) {
+  async createPassword(event) {
     event.preventDefault();
     const staffId = document.getElementById("setupStaffId").value.trim();
     const password = document.getElementById("setupPassword").value;
@@ -154,7 +154,7 @@ export const AuthMethods = {
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const users = await this.getUsers();
     const userIndex = users.findIndex((u) => u.staffId === staffId);
 
     if (userIndex === -1) {
@@ -166,8 +166,8 @@ export const AuthMethods = {
     users[userIndex].securityAnswer = securityAnswer.toLowerCase();
     users[userIndex].password = password;
     users[userIndex].passwordCreated = true;
-    localStorage.setItem("bravewood_users", JSON.stringify(users));
-    this.logAudit("PASSWORD_CREATE", `Password created for staff: ${staffId}`);
+    await this.setUsers(users);
+    await this.logAudit("PASSWORD_CREATE", `Password created for staff: ${staffId}`);
 
     this.showToast("Password created! Please login.", "success");
     this.closeModal("firstTimeSetupModal");
@@ -181,10 +181,10 @@ export const AuthMethods = {
     this.openModal("forgotPasswordModal");
   },
 
-  verifyStaffForReset(event) {
+  async verifyStaffForReset(event) {
     event.preventDefault();
     const staffId = document.getElementById("forgotStaffId").value.trim();
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const users = await this.getUsers();
     const user = users.find((u) => u.staffId === staffId);
 
     if (!user) {
@@ -207,7 +207,7 @@ export const AuthMethods = {
     document.getElementById("forgotStep2").classList.remove("hidden");
   },
 
-  resetPassword(event) {
+  async resetPassword(event) {
     event.preventDefault();
     if (!this.tempResetStaff) return;
 
@@ -233,7 +233,7 @@ export const AuthMethods = {
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const users = await this.getUsers();
     const userIndex = users.findIndex(
       (u) => u.staffId === this.tempResetStaff.staffId,
     );
@@ -241,8 +241,8 @@ export const AuthMethods = {
     if (userIndex !== -1) {
       users[userIndex].password = newPassword;
       users[userIndex].passwordCreated = true;
-      localStorage.setItem("bravewood_users", JSON.stringify(users));
-      this.logAudit(
+      await this.setUsers(users);
+      await this.logAudit(
         "PASSWORD_RESET",
         `Password reset for staff: ${this.tempResetStaff.staffId}`,
       );
@@ -259,7 +259,7 @@ export const AuthMethods = {
     this.openModal("changePasswordModal");
   },
 
-  changePassword(event) {
+  async changePassword(event) {
     event.preventDefault();
     const currentPassword = document.getElementById("currentPassword").value;
     const newPassword = document.getElementById("newPassword").value;
@@ -274,7 +274,7 @@ export const AuthMethods = {
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const users = await this.getUsers();
     const userIndex = users.findIndex(
       (u) => u.staffId === this.currentUser.staffId,
     );
@@ -285,8 +285,8 @@ export const AuthMethods = {
     }
 
     users[userIndex].password = newPassword;
-    localStorage.setItem("bravewood_users", JSON.stringify(users));
-    this.logAudit(
+    await this.setUsers(users);
+    await this.logAudit(
       "PASSWORD_CHANGE",
       `Password changed by: ${this.currentUser.staffId}`,
     );
@@ -315,7 +315,7 @@ export const AuthMethods = {
     document.getElementById("adminResetNewPassword").value = password;
   },
 
-  adminResetPassword(event) {
+  async adminResetPassword(event) {
     event.preventDefault();
     const staffId = document.getElementById("adminResetStaffId").value;
     const newPassword = document.getElementById("adminResetNewPassword").value;
@@ -325,14 +325,14 @@ export const AuthMethods = {
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const users = await this.getUsers();
     const userIndex = users.findIndex((u) => u.staffId === staffId);
 
     if (userIndex !== -1) {
       users[userIndex].password = newPassword;
       users[userIndex].passwordCreated = true;
-      localStorage.setItem("bravewood_users", JSON.stringify(users));
-      this.logAudit(
+      await this.setUsers(users);
+      await this.logAudit(
         "ADMIN_PASSWORD_RESET",
         `Admin reset password for: ${staffId}`,
       );

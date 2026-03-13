@@ -15,13 +15,9 @@ export const StorageMethods = {
   supabase: null,
 
   initSupabase() {
-    const { url, anonKey } = AppConfig.supabase;
-    // Short-circuit if using the default placeholder key
-    if (
-      anonKey ===
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4anJ2dnh2eGh2YnRrd2FtbnJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNDg4MzQsImV4cCI6MjA4ODYyNDgzNH0.2XiHrYVD-1RIU3xIugJJ39iEtS-7xlNzcGs10eSIrbE"
-    ) {
-      console.warn("Supabase not configured - using local mode");
+    const { url, anonKey, enabled } = AppConfig.supabase;
+    if (!enabled) {
+      console.log("Supabase sync disabled in config - using local mode");
       this.supabase = null;
       return;
     }
@@ -34,9 +30,37 @@ export const StorageMethods = {
     }
   },
 
-  // Unified storage methods (localStorage with optional API sync)
-  // Resolves the duplicate definition issue from the original code
+  // Unified storage methods (localStorage with optional Supabase/API sync)
   async storageGet(key) {
+    let data = null;
+
+    // 1. Try Supabase first if enabled
+    if (this.supabase) {
+      try {
+        const tableName = key === "users" ? "profiles" : (key === "attendance" ? "attendance" : "system_rules");
+        const query = this.supabase.from(tableName);
+        
+        let result;
+        if (tableName === "system_rules") {
+          result = await query.select("value").eq("key", key).single();
+        } else {
+          // For users and attendance, we fetch the whole list
+          result = await query.select("*");
+        }
+
+        const { data: remoteData, error } = result;
+
+        if (!error && remoteData) {
+          data = tableName === "system_rules" ? remoteData.value : remoteData;
+          localStorage.setItem(`bravewood_${key}`, JSON.stringify(data));
+          return data;
+        }
+      } catch (e) {
+        console.warn(`Supabase fetch failed for ${key}:`, e.message);
+      }
+    }
+
+    // 2. Fallback to legacy API if enabled
     if (AppConfig.api.enabled) {
       try {
         const response = await fetch(
@@ -48,14 +72,16 @@ export const StorageMethods = {
           },
         );
         if (response.ok) {
-          const data = await response.json();
-          localStorage.setItem(`bravewood_${key}`, JSON.stringify(data.value));
-          return data.value;
+          const apiData = await response.json();
+          localStorage.setItem(`bravewood_${key}`, JSON.stringify(apiData.value));
+          return apiData.value;
         }
       } catch (e) {
         console.warn("API fetch failed, using localStorage:", e.message);
       }
     }
+
+    // 3. Final fallback to localStorage
     try {
       return JSON.parse(localStorage.getItem(`bravewood_${key}`) || "null");
     } catch {
@@ -64,10 +90,39 @@ export const StorageMethods = {
   },
 
   async storageSet(key, value) {
+    // 1. Update localStorage first (optimistic)
     localStorage.setItem(`bravewood_${key}`, JSON.stringify(value));
+
+    // 2. Sync to Supabase if enabled
+    if (this.supabase) {
+      try {
+        const tableName = key === "users" ? "profiles" : (key === "attendance" ? "attendance" : "system_rules");
+        
+        if (tableName === "system_rules") {
+          await this.supabase
+            .from("system_rules")
+            .upsert({ key, value, updated_at: new Date().toISOString() });
+        } else {
+          // Relational tables handle items individually usually, but here we still treat the 'value'
+          // as the whole list for simplicity in this bridge layer, 
+          // or we could map list-sets to multiple upserts.
+          // For now, keeping it simple: 'value' IS the array.
+          // In a true relational move, we would iterate and upsert each user/attendance record.
+          // Since StorageMethods.setUsers etc. pass the WHOLE array:
+          for (const item of value) {
+             const idField = tableName === "profiles" ? "staffId" : "id";
+             await this.supabase.from(tableName).upsert(item);
+          }
+        }
+      } catch (e) {
+        console.warn(`Supabase save failed for ${key}:`, e.message);
+      }
+    }
+
+    // 3. Sync to legacy API if enabled
     if (AppConfig.api.enabled) {
       try {
-        const response = await fetch(
+        await fetch(
           `${AppConfig.api.baseUrl}/storage/${key}`,
           {
             method: "POST",
@@ -76,10 +131,8 @@ export const StorageMethods = {
             signal: AbortSignal.timeout(AppConfig.api.timeout),
           },
         );
-        return response.ok;
       } catch (e) {
-        console.warn("API save failed, data cached locally:", e.message);
-        return false;
+        console.warn("API save failed:", e.message);
       }
     }
     return true;
@@ -87,6 +140,15 @@ export const StorageMethods = {
 
   async storageRemove(key) {
     localStorage.removeItem(`bravewood_${key}`);
+    
+    if (this.supabase) {
+      try {
+        await this.supabase.from("system_rules").delete().eq("key", key);
+      } catch (e) {
+        console.warn(`Supabase delete failed for ${key}:`, e.message);
+      }
+    }
+
     if (AppConfig.api.enabled) {
       try {
         await fetch(`${AppConfig.api.baseUrl}/storage/${key}`, {
@@ -99,42 +161,53 @@ export const StorageMethods = {
     }
   },
 
-  // Direct localStorage accessor helpers
-  getUsers() {
-    return JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+  // Direct accessor helpers (Now Async)
+  async getUsers() {
+    return (await this.storageGet("users")) || [];
   },
-  setUsers(users) {
-    localStorage.setItem("bravewood_users", JSON.stringify(users));
+  async setUsers(users) {
+    await this.storageSet("users", users);
   },
-  getAttendance() {
-    return JSON.parse(localStorage.getItem("bravewood_attendance") || "[]");
+  async getAttendance() {
+    return (await this.storageGet("attendance")) || [];
   },
-  setAttendance(attendance) {
-    localStorage.setItem("bravewood_attendance", JSON.stringify(attendance));
+  async setAttendance(attendance) {
+    await this.storageSet("attendance", attendance);
   },
-  getRules() {
-    return JSON.parse(localStorage.getItem("bravewood_rules") || "{}");
+  async getRules() {
+    return (await this.storageGet("rules")) || {};
   },
-  setRules(rules) {
-    localStorage.setItem("bravewood_rules", JSON.stringify(rules));
+  async setRules(rules) {
+    await this.storageSet("rules", rules);
   },
-  getAudit() {
-    return JSON.parse(localStorage.getItem("bravewood_audit") || "[]");
+  async getAudit() {
+    return (await this.storageGet("audit")) || [];
   },
-  setAudit(audit) {
-    localStorage.setItem("bravewood_audit", JSON.stringify(audit));
+  async setAudit(audit) {
+    await this.storageSet("audit", audit);
   },
-  getDepartments() {
-    return JSON.parse(localStorage.getItem("bravewood_departments") || "[]");
+  async logAudit(action, details) {
+    const logs = await this.getAudit();
+    logs.push({
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      user: this.currentUser ? this.currentUser.staffId : "SYSTEM",
+      action,
+      details,
+    });
+    await this.setAudit(logs);
   },
-  getWorkDays() {
-    const rules = JSON.parse(localStorage.getItem("bravewood_rules") || "{}");
+  async getDepartments() {
+    return (await this.storageGet("departments")) || [];
+  },
+  async getWorkDays() {
+    const rules = await this.getRules();
     return rules.workDays || ["Mon", "Tue", "Wed", "Thu", "Fri"];
   },
 
   // Data migration for legacy field names
-  migrateData() {
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+  async migrateData() {
+    const users = await this.getUsers();
     if (users.length === 0) return;
 
     let migrated = false;
@@ -155,12 +228,12 @@ export const StorageMethods = {
     });
 
     if (migrated) {
-      localStorage.setItem("bravewood_users", JSON.stringify(newUsers));
+      await this.setUsers(newUsers);
     }
   },
 
   // Seed initial demo data on first run
-  seedData() {
+  async seedData() {
     if (localStorage.getItem("bravewood_initialized") === "true") return;
 
     const users = [
@@ -289,39 +362,34 @@ export const StorageMethods = {
     const departments = [...AppConfig.defaultDepartments];
     const roles = [...AppConfig.defaultRoles];
 
-    localStorage.setItem("bravewood_users", JSON.stringify(users));
-    localStorage.setItem("bravewood_attendance", JSON.stringify(attendance));
-    localStorage.setItem("bravewood_rules", JSON.stringify(rules));
-    localStorage.setItem("bravewood_audit", JSON.stringify(auditLog));
-    localStorage.setItem("bravewood_departments", JSON.stringify(departments));
-    localStorage.setItem("bravewood_roles", JSON.stringify(roles));
+    await this.setUsers(users);
+    await this.setAttendance(attendance);
+    await this.setRules(rules);
+    await this.setAudit(auditLog);
+    await this.storageSet("departments", departments);
+    await this.storageSet("roles", roles);
     localStorage.setItem("bravewood_initialized", "true");
   },
 
   // Initialize departments and roles from defaults if empty
-  loadDepartmentsAndRoles() {
-    let departments = JSON.parse(
-      localStorage.getItem("bravewood_departments") || "[]",
-    );
-    let roles = JSON.parse(localStorage.getItem("bravewood_roles") || "[]");
+  async loadDepartmentsAndRoles() {
+    let departments = await this.getDepartments();
+    let roles = (await this.storageGet("roles")) || [];
 
     if (departments.length === 0) {
       departments = [...AppConfig.defaultDepartments];
-      localStorage.setItem(
-        "bravewood_departments",
-        JSON.stringify(departments),
-      );
+      await this.storageSet("departments", departments);
     }
     if (roles.length === 0) {
       roles = [...AppConfig.defaultRoles];
-      localStorage.setItem("bravewood_roles", JSON.stringify(roles));
+      await this.storageSet("roles", roles);
     }
   },
 
   // Populate department and role <select> elements across forms
-  populateDeptRoleSelects() {
-    const departments = this.getDepartments();
-    const roles = JSON.parse(localStorage.getItem("bravewood_roles") || "[]");
+  async populateDeptRoleSelects() {
+    const departments = await this.getDepartments();
+    const roles = (await this.storageGet("roles")) || [];
 
     const deptSelects = [
       "staffDepartment",
@@ -350,7 +418,7 @@ export const StorageMethods = {
   },
 
   // Wipe all data and reload
-  resetSystem() {
+  async resetSystem() {
     if (
       !confirm(
         "WARNING: This will DELETE ALL DATA and reset to factory defaults.\n\nAre you sure?",
@@ -362,15 +430,16 @@ export const StorageMethods = {
     )
       return;
 
-    localStorage.removeItem("bravewood_users");
-    localStorage.removeItem("bravewood_attendance");
-    localStorage.removeItem("bravewood_rules");
-    localStorage.removeItem("bravewood_audit");
+    await this.storageRemove("users");
+    await this.storageRemove("attendance");
+    await this.storageRemove("rules");
+    await this.storageRemove("audit");
+    await this.storageRemove("departments");
+    await this.storageRemove("roles");
+    
     localStorage.removeItem("bravewood_initialized");
     localStorage.removeItem("bravewood_session");
     localStorage.removeItem("bravewood_theme");
-    localStorage.removeItem("bravewood_departments");
-    localStorage.removeItem("bravewood_roles");
 
     this.showToast("System reset! Reloading...", "success");
     setTimeout(() => location.reload(), 1500);

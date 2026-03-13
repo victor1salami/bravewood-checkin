@@ -8,12 +8,12 @@
 
 export const UIMethods = {
 
-    toggleTheme() {
+    async toggleTheme() {
         const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', newTheme);
         localStorage.setItem('bravewood_theme', newTheme);
-        this.storageSet('bravewood_theme', newTheme);
+        await this.storageSet('theme', newTheme);
         const toggle = document.getElementById('themeToggle');
         if (toggle) {
             const icon = toggle.querySelector('.material-icons');
@@ -21,7 +21,7 @@ export const UIMethods = {
         }
         
         if (this.attendanceChart) {
-            this.loadAttendanceChart();
+            await this.loadAttendanceChart();
         }
     },
 
@@ -35,19 +35,19 @@ export const UIMethods = {
         }
     },
 
-    toggleThemeFromSettings() {
+    async toggleThemeFromSettings() {
         const isDark = document.getElementById('settingsDarkMode').checked;
         const newTheme = isDark ? 'dark' : 'light';
         document.documentElement.setAttribute('data-theme', newTheme);
         localStorage.setItem('bravewood_theme', newTheme);
-        this.storageSet('bravewood_theme', newTheme);
+        await this.storageSet('theme', newTheme);
         const toggle = document.getElementById('themeToggle');
         if (toggle) {
             const icon = toggle.querySelector('.material-icons');
             if (icon) icon.textContent = newTheme === 'dark' ? 'light_mode' : 'dark_mode';
         }
         if (this.attendanceChart) {
-            this.loadAttendanceChart();
+            await this.loadAttendanceChart();
         }
     },
 
@@ -58,7 +58,7 @@ export const UIMethods = {
         overlay.classList.toggle('active');
     },
 
-    navigate(page, updateHistory = true) {
+    async navigate(page, updateHistory = true) {
         document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
         document.getElementById(`${page}Page`).classList.remove('hidden');
         
@@ -79,23 +79,23 @@ export const UIMethods = {
             this.updateUrl(page);
         }
         
-        this.loadPageData(page);
+        await this.loadPageData(page);
         this.currentPage = page;
     },
 
-    loadPageData(page) {
+    async loadPageData(page) {
         switch(page) {
-            case 'dashboard': this.loadDashboard(); break;
-            case 'staff': this.loadStaff(); break;
-            case 'rules': this.loadRules(); break;
-            case 'reports': this.loadReportFilters(); break;
-            case 'audit': this.loadAuditLog(); break;
-            case 'staffPortal': this.loadStaffPortal(); break;
-            case 'admin': this.loadAdmins(); break;
-            case 'deptRole': this.loadDeptRoleManagement(); break;
-            case 'staffProgress': this.loadStaffProgress(); break;
-            case 'profile': this.loadProfile(); break;
-            case 'settings': this.loadSettings(); break;
+            case 'dashboard': await this.loadDashboard(); break;
+            case 'staff': await this.loadStaff(); break;
+            case 'rules': await this.loadRules(); break;
+            case 'reports': await this.loadReportFilters(); break;
+            case 'audit': await this.loadAuditLog(); break;
+            case 'staffPortal': await this.loadStaffPortal(); break;
+            case 'admin': await this.loadAdmins(); break;
+            case 'deptRole': await this.loadDeptRoleManagement(); break;
+            case 'staffProgress': await this.loadStaffProgress(); break;
+            case 'profile': await this.loadProfile(); break;
+            case 'settings': await this.loadSettings(); break;
         }
     },
 
@@ -214,8 +214,8 @@ export const UIMethods = {
         if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     },
 
-    loadRules() {
-        const rules = JSON.parse(localStorage.getItem('bravewood_rules') || '{}');
+    async loadRules() {
+        const rules = await this.getRules();
         document.getElementById('workStartTime').value = rules.workStartTime || '09:00';
         document.getElementById('gracePeriod').value = rules.gracePeriod || 15;
         
@@ -230,7 +230,7 @@ export const UIMethods = {
         document.getElementById('gpsEnabled').checked = rules.gpsEnabled || false;
     },
 
-    saveRules(event) {
+    async saveRules(event) {
         event.preventDefault();
         const workDays = [];
         ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].forEach(day => {
@@ -246,13 +246,13 @@ export const UIMethods = {
             allowedRadius: parseInt(document.getElementById('allowedRadius').value),
             gpsEnabled: document.getElementById('gpsEnabled').checked
         };
-        localStorage.setItem('bravewood_rules', JSON.stringify(rules));
-        this.logAudit('RULES_UPDATE', 'Attendance rules updated');
+        await this.setRules(rules);
+        await this.logAudit('RULES_UPDATE', 'Attendance rules updated');
         this.showToast('Rules saved!', 'success');
     },
 
-    loadProfile() {
-        const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
+    async loadProfile() {
+        const users = await this.getUsers();
         const user = users.find(u => u.staffId === this.currentUser.staffId);
         if (!user) return;
 
@@ -305,12 +305,12 @@ export const UIMethods = {
         }
 
         // Populate department and role selects
-        this.populateDeptRoleSelects();
+        await this.populateDeptRoleSelects();
         document.getElementById('profileEditDepartment').value = user.department || '';
         document.getElementById('profileEditRole').value = user.departmentRole || '';
 
         // Statistics
-        const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
+        const attendance = await this.getAttendance();
         const myAttendance = attendance.filter(a => a.staffId === user.staffId);
         const totalDays = myAttendance.length;
         const onTimeDays = myAttendance.filter(a => a.status === 'ON_TIME').length;
@@ -329,7 +329,7 @@ export const UIMethods = {
         document.getElementById('profileEditMode').classList.toggle('hidden', !this.profileEditMode);
     },
 
-    saveProfile(event) {
+    async saveProfile(event) {
         event.preventDefault();
         const name = document.getElementById('profileEditName').value.trim();
         const email = document.getElementById('profileEditEmail').value.trim();
@@ -340,7 +340,7 @@ export const UIMethods = {
         const profileImageInput = document.getElementById('profileEditImagePreview');
         const profileImage = profileImageInput.style.display !== 'none' ? profileImageInput.src : null;
 
-        const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
+        const users = await this.getUsers();
         const index = users.findIndex(u => u.staffId === this.currentUser.staffId);
         if (index === -1) return;
 
@@ -354,7 +354,7 @@ export const UIMethods = {
             workStartTime,
             ...(profileImage && { profileImage })
         };
-        localStorage.setItem('bravewood_users', JSON.stringify(users));
+        await this.setUsers(users);
 
         // Update current user
         this.currentUser = { ...users[index] };
@@ -362,14 +362,14 @@ export const UIMethods = {
         delete this.currentUser.securityAnswer;
         localStorage.setItem('bravewood_session', JSON.stringify(this.currentUser));
 
-        this.logAudit('PROFILE_UPDATE', `Profile updated by: ${this.currentUser.staffId}`);
+        await this.logAudit('PROFILE_UPDATE', `Profile updated by: ${this.currentUser.staffId}`);
         this.showToast('Profile updated successfully!', 'success');
         this.toggleEditProfile();
-        this.loadProfile();
+        await this.loadProfile();
     },
 
-    emailMyData() {
-        const users = JSON.parse(localStorage.getItem('bravewood_users') || '[]');
+    async emailMyData() {
+        const users = await this.getUsers();
         const user = users.find(u => u.staffId === this.currentUser.staffId);
         if (!user || !user.email) {
             this.showToast('Please add your email address in profile first', 'warning');
@@ -383,7 +383,7 @@ export const UIMethods = {
             return;
         }
 
-        const attendance = JSON.parse(localStorage.getItem('bravewood_attendance') || '[]');
+        const attendance = await this.getAttendance();
         const myAttendance = attendance.filter(a => a.staffId === user.staffId).sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
 
         // Build comprehensive email content
@@ -445,7 +445,7 @@ export const UIMethods = {
             this.copyToClipboard(emailBody);
             this.showToast('Email content copied to clipboard! Please paste in your email client.', 'warning');
         }
-        this.logAudit('EMAIL_DATA', `User ${user.staffId} requested data email to ${user.email}`);
+        await this.logAudit('EMAIL_DATA', `User ${user.staffId} requested data email to ${user.email}`);
     },
 
     copyToClipboard(text) {

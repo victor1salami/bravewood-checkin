@@ -14,6 +14,7 @@
    import { DashboardMethods } from "./dashboard.js";
    import { ReportMethods } from "./reports.js";
    import { UIMethods } from "./ui.js";
+   import { AdminMethods } from "./admin.js";
 
 
 const appState = {
@@ -36,6 +37,7 @@ const app = Object.assign(
   AttendanceMethods,
   DashboardMethods,
   ReportMethods,
+  AdminMethods,
   UIMethods
 );
 
@@ -43,12 +45,12 @@ const app = Object.assign(
 window.app = app;
 
 Object.assign(app, {
-  init() {
+  async init() {
       // Initialize Supabase for cross-device sync (if configured)
       this.initSupabase();
 
-      this.migrateData();
-      this.seedData();
+      await this.migrateData();
+      await this.seedData();
       this.loadTheme();
       this.updateDateTime();
 
@@ -56,7 +58,7 @@ Object.assign(app, {
       setInterval(() => this.updateDateTime(), 1000);
 
       this.setupEventListeners();
-      this.loadDepartmentsAndRoles();
+      await this.loadDepartmentsAndRoles();
 
       // Clear bulk upload messages on page refresh
       if (typeof this.clearBulkUploadMessages === "function") {
@@ -92,7 +94,7 @@ Object.assign(app, {
       });
 
       // Check for existing session to maintain login after page refresh
-      this.checkSession();
+      await this.checkSession();
     },
 
     setupEventListeners() {
@@ -127,7 +129,7 @@ Object.assign(app, {
       // Main login form handler
       const loginForm = document.getElementById("loginForm");
       if (loginForm) {
-        loginForm.addEventListener("submit", (e) => {
+        loginForm.addEventListener("submit", async (e) => {
           e.preventDefault();
           const staffId = document.getElementById("loginStaffId").value.trim();
           const password = document.getElementById("loginPassword").value;
@@ -136,8 +138,8 @@ Object.assign(app, {
           loginBtn.innerHTML = '<span class="spinner"></span>';
           loginBtn.disabled = true;
 
-          // login() method is mixed in from auth.js
-          const result = this.login(staffId, password);
+          // login() method is mixed in from auth.js (now async)
+          const result = await this.login(staffId, password);
 
           loginBtn.innerHTML = "<span>Sign In</span>";
           loginBtn.disabled = false;

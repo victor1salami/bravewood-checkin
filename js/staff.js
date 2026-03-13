@@ -10,9 +10,9 @@ import { AppConfig } from "./config.js";
 export const StaffMethods = {
   currentEnrollStaffId: null,
 
-  loadStaff() {
-    this.populateDeptRoleSelects();
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+  async loadStaff() {
+    await this.populateDeptRoleSelects();
+    const users = await this.getUsers();
     const staffList = users.filter((u) => u.systemRole === "STAFF");
     this.renderStaffTable(staffList);
   },
@@ -78,9 +78,9 @@ export const StaffMethods = {
     if (menu) menu.classList.remove("active");
   },
 
-  searchStaff() {
+  async searchStaff() {
     const query = document.getElementById("staffSearch").value.toLowerCase();
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const users = await this.getUsers();
     const staffList = users.filter(
       (u) =>
         u.systemRole === "STAFF" &&
@@ -92,8 +92,8 @@ export const StaffMethods = {
     this.renderStaffTable(staffList);
   },
 
-  openAddStaffModal() {
-    this.populateDeptRoleSelects();
+  async openAddStaffModal() {
+    await this.populateDeptRoleSelects();
     document.getElementById("addStaffForm").reset();
     document.getElementById("profilePreview").innerHTML =
       '<span class="material-icons">person</span>';
@@ -101,9 +101,9 @@ export const StaffMethods = {
     this.openModal("addStaffModal");
   },
 
-  openEditStaffModal(staffId) {
-    this.populateDeptRoleSelects();
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+  async openEditStaffModal(staffId) {
+    await this.populateDeptRoleSelects();
+    const users = await this.getUsers();
     const staff = users.find((u) => u.staffId === staffId);
     if (!staff) return;
 
@@ -149,7 +149,7 @@ export const StaffMethods = {
     }
   },
 
-  saveStaff(event) {
+  async saveStaff(event) {
     event.preventDefault();
     const staffId = document.getElementById("staffId").value.trim();
     const name = document.getElementById("staffName").value.trim();
@@ -161,7 +161,7 @@ export const StaffMethods = {
       document.getElementById("profilePreview").querySelector("img")?.src ||
       null;
 
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const users = await this.getUsers();
     if (users.some((u) => u.staffId === staffId)) {
       this.showToast("Staff ID already exists", "error");
       return;
@@ -189,8 +189,8 @@ export const StaffMethods = {
       phone: "",
     });
 
-    localStorage.setItem("bravewood_users", JSON.stringify(users));
-    this.logAudit(
+    await this.setUsers(users);
+    await this.logAudit(
       "STAFF_ADD",
       `Added staff: ${name} (${staffId}) - ${departmentRole} in ${department}`,
     );
@@ -199,10 +199,10 @@ export const StaffMethods = {
       "success",
     );
     this.closeModal("addStaffModal");
-    this.loadStaff();
+    await this.loadStaff();
   },
 
-  updateStaff(event) {
+  async updateStaff(event) {
     event.preventDefault();
     const staffId = document.getElementById("editStaffId").value;
     const name = document.getElementById("editStaffName").value.trim();
@@ -211,7 +211,7 @@ export const StaffMethods = {
     const workStartTime = document.getElementById("editStaffWorkTime").value;
     const isAdmin = document.getElementById("editIsAdmin").checked;
 
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const users = await this.getUsers();
     const index = users.findIndex((u) => u.staffId === staffId);
     if (index === -1) return;
 
@@ -226,7 +226,7 @@ export const StaffMethods = {
       workStartTime,
       systemRole: isAdmin ? "ADMIN" : "STAFF",
     };
-    localStorage.setItem("bravewood_users", JSON.stringify(users));
+    await this.setUsers(users);
 
     let changes = [];
     if (oldRole !== departmentRole)
@@ -234,37 +234,32 @@ export const StaffMethods = {
     if (oldSystemRole !== users[index].systemRole)
       changes.push(`Access: ${oldSystemRole} -> ${users[index].systemRole}`);
 
-    this.logAudit(
+    await this.logAudit(
       "STAFF_EDIT",
       `Updated: ${name} (${staffId})${changes.length ? " - " + changes.join(", ") : ""}`,
     );
     this.showToast("Staff updated!", "success");
     this.closeModal("editStaffModal");
-    this.loadStaff();
+    await this.loadStaff();
   },
 
-  deleteStaff(staffId) {
+  async deleteStaff(staffId) {
     if (!confirm("Delete this staff member?")) return;
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+    const users = await this.getUsers();
     const staff = users.find((u) => u.staffId === staffId);
 
     const filtered = users.filter((u) => u.staffId !== staffId);
-    localStorage.setItem("bravewood_users", JSON.stringify(filtered));
+    await this.setUsers(filtered);
 
-    const attendance = JSON.parse(
-      localStorage.getItem("bravewood_attendance") || "[]",
-    );
-    localStorage.setItem(
-      "bravewood_attendance",
-      JSON.stringify(attendance.filter((a) => a.staffId !== staffId)),
-    );
+    const attendance = await this.getAttendance();
+    await this.setAttendance(attendance.filter((a) => a.staffId !== staffId));
 
-    this.logAudit(
+    await this.logAudit(
       "STAFF_DELETE",
       `Deleted: ${staff ? staff.name : staffId} (${staffId})`,
     );
     this.showToast("Staff deleted!", "success");
-    this.loadStaff();
+    await this.loadStaff();
   },
 
   // Fingerprint enrollment
@@ -277,26 +272,26 @@ export const StaffMethods = {
     this.openModal("fingerprintModal");
   },
 
-  enrollFingerprint() {
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+  async enrollFingerprint() {
+    const users = await this.getUsers();
     const index = users.findIndex(
       (u) => u.staffId === this.currentEnrollStaffId,
     );
 
     if (index !== -1) {
       users[index].fingerprint_registered = true;
-      localStorage.setItem("bravewood_users", JSON.stringify(users));
+      await this.setUsers(users);
       document.getElementById("fingerprintEnrollStep1").classList.add("hidden");
       document
         .getElementById("fingerprintEnrollStep2")
         .classList.remove("hidden");
-      this.logAudit(
+      await this.logAudit(
         "FINGERPRINT_ENROLL",
         `Enrolled for: ${users[index].name} (${this.currentEnrollStaffId})`,
       );
-      setTimeout(() => {
+      setTimeout(async () => {
         this.closeModal("fingerprintModal");
-        this.loadStaff();
+        await this.loadStaff();
       }, 1500);
     }
   },
@@ -307,12 +302,12 @@ export const StaffMethods = {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const lines = e.target.result.split("\n").filter((line) => line.trim());
       let success = 0,
         failed = 0,
         errors = [];
-      const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
+      const users = await this.getUsers();
 
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(",").map((c) => c.trim());
@@ -348,14 +343,14 @@ export const StaffMethods = {
         success++;
       }
 
-      localStorage.setItem("bravewood_users", JSON.stringify(users));
+      await this.setUsers(users);
       document.getElementById("uploadSuccess").textContent = success;
       document.getElementById("uploadFailed").textContent = failed;
       document.getElementById("uploadErrors").innerHTML = errors
         .map((e) => `<div>${e}</div>`)
         .join("");
       document.getElementById("uploadResults").classList.remove("hidden");
-      this.logAudit("BULK_UPLOAD", `CSV: ${success} success, ${failed} failed`);
+      await this.logAudit("BULK_UPLOAD", `CSV: ${success} success, ${failed} failed`);
       if (success > 0) this.showToast(`${success} staff uploaded!`, "success");
     };
     reader.readAsText(file);
@@ -366,41 +361,42 @@ export const StaffMethods = {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
-    const users = JSON.parse(localStorage.getItem("bravewood_users") || "[]");
-    const results = [];
-    let processed = 0;
+    this.getUsers().then((users) => {
+      const results = [];
+      let processed = 0;
 
-    files.forEach((file) => {
-      const staffId = file.name.split(".")[0];
-      const userIndex = users.findIndex((u) => u.staffId === staffId);
+      files.forEach((file) => {
+        const staffId = file.name.split(".")[0];
+        const userIndex = users.findIndex((u) => u.staffId === staffId);
 
-      if (userIndex === -1) {
-        results.push({
-          staffId,
-          status: "error",
-          message: "Staff ID not found",
-        });
-        processed++;
-        if (processed === files.length) this.showBulkImageResults(results);
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        users[userIndex].profileImage = e.target.result;
-        results.push({ staffId, status: "success", message: "Uploaded" });
-        processed++;
-
-        if (processed === files.length) {
-          localStorage.setItem("bravewood_users", JSON.stringify(users));
-          this.showBulkImageResults(results);
-          this.logAudit(
-            "BULK_IMAGE_UPLOAD",
-            `${results.filter((r) => r.status === "success").length} images uploaded`,
-          );
+        if (userIndex === -1) {
+          results.push({
+            staffId,
+            status: "error",
+            message: "Staff ID not found",
+          });
+          processed++;
+          if (processed === files.length) this.showBulkImageResults(results);
+          return;
         }
-      };
-      reader.readAsDataURL(file);
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          users[userIndex].profileImage = e.target.result;
+          results.push({ staffId, status: "success", message: "Uploaded" });
+          processed++;
+
+          if (processed === files.length) {
+            await this.setUsers(users);
+            this.showBulkImageResults(results);
+            await this.logAudit(
+              "BULK_IMAGE_UPLOAD",
+              `${results.filter((r) => r.status === "success").length} images uploaded`,
+            );
+          }
+        };
+        reader.readAsDataURL(file);
+      });
     });
   },
 

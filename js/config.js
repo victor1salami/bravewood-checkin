@@ -50,6 +50,7 @@ export const AppConfig = {
 
   // Supabase configuration for cross-device sync
   supabase: {
+    enabled: false, // Set to true once credentials are updated
     url: "https://jxjrvvxvxhvbtkwamnrf.supabase.co",
     anonKey:
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4anJ2dnh2eGh2YnRrd2FtbnJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNDg4MzQsImV4cCI6MjA4ODYyNDgzNH0.2XiHrYVD-1RIU3xIugJJ39iEtS-7xlNzcGs10eSIrbE",
