@@ -61,24 +61,29 @@ export const AttendanceMethods = {
     const status =
       currentMinutes <= workStartMinutes + gracePeriod ? "ON_TIME" : "LATE";
 
-    attendance.push({
-      id: Date.now().toString(),
+    const record = {
       staffId: staff.staffId,
       date: today,
       time: currentTime,
       status,
-    });
-    await this.setAttendance(attendance);
+    };
 
-    document.getElementById("quickCheckinResult").textContent =
-      `${staff.name} - ${status === "ON_TIME" ? "On Time" : "Late"}`;
-    document.getElementById("quickCheckinResult").style.color =
-      status === "ON_TIME" ? "var(--success)" : "var(--warning)";
-    await this.logAudit(
-      "CHECKIN",
-      `${staff.name} checked in at ${currentTime} - ${status}`,
-    );
-    await this.loadDashboard();
+    try {
+      await this.dbUpsertAttendance(record);
+      document.getElementById("quickCheckinResult").textContent =
+        `${staff.name} - ${status === "ON_TIME" ? "On Time" : "Late"}`;
+      document.getElementById("quickCheckinResult").style.color =
+        status === "ON_TIME" ? "var(--success)" : "var(--warning)";
+      await this.logAudit(
+        "CHECKIN",
+        `${staff.name} checked in at ${currentTime} - ${status}`,
+      );
+      await this.loadDashboard();
+    } catch (err) {
+      console.error("Checkin failed:", err);
+      document.getElementById("quickCheckinResult").textContent = "Database error";
+      document.getElementById("quickCheckinResult").style.color = "var(--danger)";
+    }
   },
 
   async simulateFingerprintScan() {
@@ -194,25 +199,30 @@ export const AttendanceMethods = {
     const status =
       currentMinutes <= workStartMinutes + gracePeriod ? "ON_TIME" : "LATE";
 
-    attendance.push({
-      id: Date.now().toString(),
+    const record = {
       staffId: staff.staffId,
       date: today,
       time: currentTime,
       status,
-    });
-    await this.setAttendance(attendance);
+    };
 
-    document.getElementById("checkinName").textContent =
-      staff.name.toUpperCase();
-    document.getElementById("checkinStatus").textContent =
-      status === "ON_TIME" ? "On Time" : "Late";
-    document.getElementById("checkinStatus").style.color =
-      status === "ON_TIME" ? "var(--success)" : "var(--warning)";
-    await this.logAudit(
-      "CHECKIN",
-      `${staff.name} checked in at ${currentTime} - ${status}`,
-    );
+    try {
+      await this.dbUpsertAttendance(record);
+      document.getElementById("checkinName").textContent =
+        staff.name.toUpperCase();
+      document.getElementById("checkinStatus").textContent =
+        status === "ON_TIME" ? "On Time" : "Late";
+      document.getElementById("checkinStatus").style.color =
+        status === "ON_TIME" ? "var(--success)" : "var(--warning)";
+      await this.logAudit(
+        "CHECKIN",
+        `${staff.name} checked in at ${currentTime} - ${status}`,
+      );
+    } catch (err) {
+      console.error("Checkin failed:", err);
+      document.getElementById("checkinStatus").textContent = "Database error";
+      document.getElementById("checkinStatus").style.color = "var(--danger)";
+    }
   },
 
   timeToMinutes(time) {

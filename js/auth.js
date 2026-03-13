@@ -162,15 +162,23 @@ export const AuthMethods = {
       return;
     }
 
-    users[userIndex].securityQuestion = securityQuestion;
-    users[userIndex].securityAnswer = securityAnswer.toLowerCase();
-    users[userIndex].password = password;
-    users[userIndex].passwordCreated = true;
-    await this.setUsers(users);
-    await this.logAudit("PASSWORD_CREATE", `Password created for staff: ${staffId}`);
+    const updatedUser = {
+      ...users[userIndex],
+      securityQuestion,
+      securityAnswer: securityAnswer.toLowerCase(),
+      password,
+      passwordCreated: true,
+    };
 
-    this.showToast("Password created! Please login.", "success");
-    this.closeModal("firstTimeSetupModal");
+    try {
+      await this.dbUpsertUser(updatedUser);
+      await this.logAudit("PASSWORD_CREATE", `Password created for staff: ${staffId}`);
+      this.showToast("Password created! Please login.", "success");
+      this.closeModal("firstTimeSetupModal");
+    } catch (err) {
+      console.error("Password creation failed:", err);
+      this.showToast("Failed to save password to database.", "error");
+    }
   },
 
   // Forgot password flow
@@ -238,19 +246,25 @@ export const AuthMethods = {
       (u) => u.staffId === this.tempResetStaff.staffId,
     );
 
-    if (userIndex !== -1) {
-      users[userIndex].password = newPassword;
-      users[userIndex].passwordCreated = true;
-      await this.setUsers(users);
+    const updatedUser = {
+      ...users[userIndex],
+      password: newPassword,
+      passwordCreated: true,
+    };
+
+    try {
+      await this.dbUpsertUser(updatedUser);
       await this.logAudit(
         "PASSWORD_RESET",
         `Password reset for staff: ${this.tempResetStaff.staffId}`,
       );
+      this.tempResetStaff = null;
+      this.showToast("Password reset! Please login.", "success");
+      this.closeModal("forgotPasswordModal");
+    } catch (err) {
+      console.error("Password reset failed:", err);
+      this.showToast("Failed to update password in database.", "error");
     }
-
-    this.tempResetStaff = null;
-    this.showToast("Password reset! Please login.", "success");
-    this.closeModal("forgotPasswordModal");
   },
 
   // Change password (logged-in user)
@@ -284,14 +298,23 @@ export const AuthMethods = {
       return;
     }
 
-    users[userIndex].password = newPassword;
-    await this.setUsers(users);
-    await this.logAudit(
-      "PASSWORD_CHANGE",
-      `Password changed by: ${this.currentUser.staffId}`,
-    );
-    this.showToast("Password changed successfully!", "success");
-    this.closeModal("changePasswordModal");
+    const updatedUser = {
+      ...users[userIndex],
+      password: newPassword,
+    };
+
+    try {
+      await this.dbUpsertUser(updatedUser);
+      await this.logAudit(
+        "PASSWORD_CHANGE",
+        `Password changed by: ${this.currentUser.staffId}`,
+      );
+      this.showToast("Password changed successfully!", "success");
+      this.closeModal("changePasswordModal");
+    } catch (err) {
+      console.error("Password change failed:", err);
+      this.showToast("Failed to update password in database.", "error");
+    }
   },
 
   // Admin password reset
@@ -328,17 +351,23 @@ export const AuthMethods = {
     const users = await this.getUsers();
     const userIndex = users.findIndex((u) => u.staffId === staffId);
 
-    if (userIndex !== -1) {
-      users[userIndex].password = newPassword;
-      users[userIndex].passwordCreated = true;
-      await this.setUsers(users);
+    const updatedUser = {
+      ...users[userIndex],
+      password: newPassword,
+      passwordCreated: true,
+    };
+
+    try {
+      await this.dbUpsertUser(updatedUser);
       await this.logAudit(
         "ADMIN_PASSWORD_RESET",
         `Admin reset password for: ${staffId}`,
       );
+      this.showToast(`Password reset! New: ${newPassword}`, "success");
+      this.closeModal("adminResetModal");
+    } catch (err) {
+      console.error("Admin reset failed:", err);
+      this.showToast("Failed to reset password in database.", "error");
     }
-
-    this.showToast(`Password reset! New: ${newPassword}`, "success");
-    this.closeModal("adminResetModal");
   },
 };

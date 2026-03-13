@@ -172,7 +172,7 @@ export const StaffMethods = {
         Math.floor(Math.random() * AppConfig.securityQuestions.length)
       ];
 
-    users.push({
+    const newUser = {
       staffId,
       password: staffId.toLowerCase(),
       name,
@@ -187,19 +187,24 @@ export const StaffMethods = {
       securityAnswer: name.split(" ")[0].toLowerCase(),
       email: "",
       phone: "",
-    });
+    };
 
-    await this.setUsers(users);
-    await this.logAudit(
-      "STAFF_ADD",
-      `Added staff: ${name} (${staffId}) - ${departmentRole} in ${department}`,
-    );
-    this.showToast(
-      "Staff added! They must create password on first login.",
-      "success",
-    );
-    this.closeModal("addStaffModal");
-    await this.loadStaff();
+    try {
+      await this.dbUpsertUser(newUser);
+      await this.logAudit(
+        "STAFF_ADD",
+        `Added staff: ${name} (${staffId}) - ${departmentRole} in ${department}`,
+      );
+      this.showToast(
+        "Staff added! They must create password on first login.",
+        "success",
+      );
+      this.closeModal("addStaffModal");
+      await this.loadStaff();
+    } catch (err) {
+      console.error("Save staff failed:", err);
+      this.showToast("Failed to save staff to database.", "error");
+    }
   },
 
   async updateStaff(event) {
@@ -218,7 +223,7 @@ export const StaffMethods = {
     const oldRole = users[index].departmentRole;
     const oldSystemRole = users[index].systemRole;
 
-    users[index] = {
+    const updatedUser = {
       ...users[index],
       name,
       department,
@@ -226,21 +231,26 @@ export const StaffMethods = {
       workStartTime,
       systemRole: isAdmin ? "ADMIN" : "STAFF",
     };
-    await this.setUsers(users);
 
-    let changes = [];
-    if (oldRole !== departmentRole)
-      changes.push(`Role: ${oldRole} -> ${departmentRole}`);
-    if (oldSystemRole !== users[index].systemRole)
-      changes.push(`Access: ${oldSystemRole} -> ${users[index].systemRole}`);
+    try {
+      await this.dbUpsertUser(updatedUser);
+      let changes = [];
+      if (oldRole !== departmentRole)
+        changes.push(`Role: ${oldRole} -> ${departmentRole}`);
+      if (oldSystemRole !== updatedUser.systemRole)
+        changes.push(`Access: ${oldSystemRole} -> ${updatedUser.systemRole}`);
 
-    await this.logAudit(
-      "STAFF_EDIT",
-      `Updated: ${name} (${staffId})${changes.length ? " - " + changes.join(", ") : ""}`,
-    );
-    this.showToast("Staff updated!", "success");
-    this.closeModal("editStaffModal");
-    await this.loadStaff();
+      await this.logAudit(
+        "STAFF_EDIT",
+        `Updated: ${name} (${staffId})${changes.length ? " - " + changes.join(", ") : ""}`,
+      );
+      this.showToast("Staff updated!", "success");
+      this.closeModal("editStaffModal");
+      await this.loadStaff();
+    } catch (err) {
+      console.error("Update staff failed:", err);
+      this.showToast("Failed to update staff in database.", "error");
+    }
   },
 
   async deleteStaff(staffId) {
@@ -248,18 +258,19 @@ export const StaffMethods = {
     const users = await this.getUsers();
     const staff = users.find((u) => u.staffId === staffId);
 
-    const filtered = users.filter((u) => u.staffId !== staffId);
-    await this.setUsers(filtered);
-
-    const attendance = await this.getAttendance();
-    await this.setAttendance(attendance.filter((a) => a.staffId !== staffId));
-
-    await this.logAudit(
-      "STAFF_DELETE",
-      `Deleted: ${staff ? staff.name : staffId} (${staffId})`,
-    );
-    this.showToast("Staff deleted!", "success");
-    await this.loadStaff();
+    try {
+      await this.dbDeleteUser(staffId);
+      // Optional: Handle attendance cleanup if needed, but dbDeleteUser handles profiles
+      await this.logAudit(
+        "STAFF_DELETE",
+        `Deleted: ${staff ? staff.name : staffId} (${staffId})`,
+      );
+      this.showToast("Staff deleted!", "success");
+      await this.loadStaff();
+    } catch (err) {
+      console.error("Delete staff failed:", err);
+      this.showToast("Failed to delete staff from database.", "error");
+    }
   },
 
   // Fingerprint enrollment
@@ -314,17 +325,11 @@ export const StaffMethods = {
         if (cols.length < 5) continue;
         const [staffId, name, department, departmentRole, workStartTime] = cols;
 
-        if (users.some((u) => u.staffId === staffId)) {
-          failed++;
-          errors.push(`Row ${i}: ${staffId} exists`);
-          continue;
-        }
-
         const randomQ =
           AppConfig.securityQuestions[
             Math.floor(Math.random() * AppConfig.securityQuestions.length)
           ];
-        users.push({
+        const newUser = {
           staffId,
           password: staffId.toLowerCase(),
           name,
@@ -339,11 +344,18 @@ export const StaffMethods = {
           securityAnswer: name.split(" ")[0].toLowerCase(),
           email: "",
           phone: "",
-        });
-        success++;
+        };
+
+        try {
+          await this.dbUpsertUser(newUser);
+          success++;
+        } catch (err) {
+          console.error(`Bulk upload failed for ${staffId}:`, err);
+          failed++;
+          errors.push(`Row ${i} (${staffId}): ${err.message || "Save failed"}`);
+        }
       }
 
-      await this.setUsers(users);
       document.getElementById("uploadSuccess").textContent = success;
       document.getElementById("uploadFailed").textContent = failed;
       document.getElementById("uploadErrors").innerHTML = errors
@@ -351,7 +363,10 @@ export const StaffMethods = {
         .join("");
       document.getElementById("uploadResults").classList.remove("hidden");
       await this.logAudit("BULK_UPLOAD", `CSV: ${success} success, ${failed} failed`);
-      if (success > 0) this.showToast(`${success} staff uploaded!`, "success");
+      if (success > 0) {
+        this.showToast(`${success} staff uploaded!`, "success");
+        await this.loadStaff();
+      }
     };
     reader.readAsText(file);
   },

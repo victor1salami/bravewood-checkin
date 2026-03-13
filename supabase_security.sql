@@ -13,42 +13,36 @@ DROP POLICY IF EXISTS "Admins can manage all attendance" ON attendance;
 DROP POLICY IF EXISTS "Users can view own attendance" ON attendance;
 DROP POLICY IF EXISTS "Admins can manage rules" ON system_rules;
 DROP POLICY IF EXISTS "Everyone can select rules" ON system_rules;
+DROP POLICY IF EXISTS "Allow public read access to system_rules" ON system_rules;
+DROP POLICY IF EXISTS "Allow public read access to departments" ON departments;
+DROP POLICY IF EXISTS "Allow public read access to roles" ON roles;
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can view own attendance" ON attendance;
+DROP POLICY IF EXISTS "Users can insert attendance" ON attendance;
 
--- Everyone can select rules (Essential for app configuration)
-CREATE POLICY "Allow public read access to system_rules" 
-ON system_rules FOR SELECT USING (true);
-
--- Everyone can view lookup tables
-CREATE POLICY "Allow public read access to departments" 
-ON departments FOR SELECT USING (true);
-
-CREATE POLICY "Allow public read access to roles" 
-ON roles FOR SELECT USING (true);
-
--- NOTE: These policies assume a custom claim or a specific field in the profiles table 
--- Since we are currently using the Anon key and our own password logic, RLS is limited
--- without proper Supabase Auth. 
--- For now, we will use a "Secret Header" or "Staff ID" comparison if possible, 
--- but TRUE production readiness requires Supabase Auth.
-
--- Example policies for when Supabase Auth is integrated:
+-- Unified Development Policies (Public Read/Write)
+-- These allow the app to function with custom auth until Supabase Auth is integrated.
 
 -- Profiles
-CREATE POLICY "Public profiles are viewable by everyone" 
-ON profiles FOR SELECT USING (true);
-
-CREATE POLICY "Users can update own profile" 
-ON profiles FOR UPDATE USING (true); -- Temporary until Supabase Auth is active
+CREATE POLICY "Public profiles are fully manageable" 
+ON profiles FOR ALL USING (true) WITH CHECK (true);
 
 -- Attendance
-CREATE POLICY "Users can view own attendance" 
-ON attendance FOR SELECT USING (true); -- Temporary until Supabase Auth is active
+CREATE POLICY "Attendance is fully manageable" 
+ON attendance FOR ALL USING (true) WITH CHECK (true);
 
-CREATE POLICY "Users can insert attendance" 
-ON attendance FOR INSERT WITH CHECK (true); -- Temporary until Supabase Auth is active
+-- Audit Logs
+CREATE POLICY "Audit logs are fully manageable" 
+ON audit_logs FOR ALL USING (true) WITH CHECK (true);
 
--- TO THE USER: 
--- These policies are currently set to "true" (Public Read/Write) because 
--- you are using custom password logic instead of Supabase Auth.
--- Once you switch to Supabase Auth (Phase 7), we will tighten these 
--- using (auth.uid() = id).
+-- Lookup Tables
+CREATE POLICY "Lookup tables are readable by everyone" 
+ON departments FOR SELECT USING (true);
+
+CREATE POLICY "Roles are readable by everyone" 
+ON roles FOR SELECT USING (true);
+
+-- System Rules
+CREATE POLICY "System rules are readable by everyone" 
+ON system_rules FOR SELECT USING (true);

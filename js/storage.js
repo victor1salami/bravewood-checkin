@@ -44,15 +44,23 @@ export const StorageMethods = {
         if (tableName === "system_rules") {
           result = await query.select("value").eq("key", key).single();
         } else {
-          // For users and attendance, we fetch the whole list
           result = await query.select("*");
         }
 
         const { data: remoteData, error } = result;
 
         if (!error && remoteData) {
-          data = tableName === "system_rules" ? remoteData.value : remoteData;
-          localStorage.setItem(`bravewood_${key}`, JSON.stringify(data));
+          // PROTECTION: If we received empty relational data but HAVE local data, 
+          // do NOT overwrite. This avoids losing data if Supabase is wiped or empty.
+          const localData = JSON.parse(localStorage.getItem(`bravewood_${key}`) || "null");
+          
+          if (Array.isArray(remoteData) && remoteData.length === 0 && localData && localData.length > 0) {
+            console.warn(`Supabase returned empty ${key}, preserving local data.`);
+            data = localData;
+          } else {
+            data = tableName === "system_rules" ? remoteData.value : remoteData;
+            localStorage.setItem(`bravewood_${key}`, JSON.stringify(data));
+          }
           return data;
         }
       } catch (e) {
@@ -103,15 +111,18 @@ export const StorageMethods = {
             .from("system_rules")
             .upsert({ key, value, updated_at: new Date().toISOString() });
         } else {
-          // Relational tables handle items individually usually, but here we still treat the 'value'
-          // as the whole list for simplicity in this bridge layer, 
-          // or we could map list-sets to multiple upserts.
-          // For now, keeping it simple: 'value' IS the array.
-          // In a true relational move, we would iterate and upsert each user/attendance record.
-          // Since StorageMethods.setUsers etc. pass the WHOLE array:
+          // Relational tables handle items individually.
+          // IMPORTANT: We use 'staffId' as the conflict target for profiles
+          // to ensure we update existing records rather than failing on unique constraints.
           for (const item of value) {
-             const idField = tableName === "profiles" ? "staffId" : "id";
-             await this.supabase.from(tableName).upsert(item);
+             const onConflict = tableName === "profiles" ? "staffId" : "id";
+             // Clean item: remove potential numeric ID strings from seed if they exist
+             const cleanItem = { ...item };
+             if (tableName === "profiles" && typeof cleanItem.id === 'string' && !cleanItem.id.includes('-')) {
+                delete cleanItem.id; // Let Supabase generate a proper UUID
+             }
+
+             await this.supabase.from(tableName).upsert(cleanItem, { onConflict });
           }
         }
       } catch (e) {
@@ -136,6 +147,56 @@ export const StorageMethods = {
       }
     }
     return true;
+  },
+
+  // NEW: Direct Database Methods (Remote-First)
+  async dbGetUsers() {
+    if (!this.supabase) return this.getUsers(); // Fallback to local
+    const { data, error } = await this.supabase.from("profiles").select("*");
+    if (error) throw error;
+    localStorage.setItem("bravewood_users", JSON.stringify(data)); // Optional cache
+    return data;
+  },
+
+  async dbUpsertUser(user) {
+    if (!this.supabase) {
+      const users = await this.getUsers();
+      const idx = users.findIndex(u => u.staffId === user.staffId);
+      if (idx !== -1) users[idx] = user; else users.push(user);
+      return this.setUsers(users);
+    }
+    const { error } = await this.supabase.from("profiles").upsert(user, { onConflict: 'staffId' });
+    if (error) throw error;
+    // Update local cache
+    const users = await this.getUsers();
+    const idx = users.findIndex(u => u.staffId === user.staffId);
+    if (idx !== -1) users[idx] = user; else users.push(user);
+    localStorage.setItem("bravewood_users", JSON.stringify(users));
+  },
+
+  async dbDeleteUser(staffId) {
+    if (!this.supabase) {
+      const users = await this.getUsers();
+      const filtered = users.filter(u => u.staffId !== staffId);
+      return this.setUsers(filtered);
+    }
+    const { error } = await this.supabase.from("profiles").delete().eq("staffId", staffId);
+    if (error) throw error;
+    const users = await this.getUsers();
+    localStorage.setItem("bravewood_users", JSON.stringify(users.filter(u => u.staffId !== staffId)));
+  },
+
+  async dbUpsertAttendance(record) {
+    if (!this.supabase) {
+      const attendance = await this.getAttendance();
+      attendance.push(record);
+      return this.setAttendance(attendance);
+    }
+    const { error } = await this.supabase.from("attendance").upsert(record);
+    if (error) throw error;
+    const attendance = await this.getAttendance();
+    attendance.push(record);
+    localStorage.setItem("bravewood_attendance", JSON.stringify(attendance));
   },
 
   async storageRemove(key) {
@@ -163,12 +224,24 @@ export const StorageMethods = {
 
   // Direct accessor helpers (Now Async)
   async getUsers() {
+    try {
+      if (this.supabase) return await this.dbGetUsers();
+    } catch (e) {
+      console.warn("dbGetUsers failed, falling back to local:", e.message);
+    }
     return (await this.storageGet("users")) || [];
   },
   async setUsers(users) {
+    // Deprecated for direct use, but kept for legacy/compatibility
     await this.storageSet("users", users);
   },
   async getAttendance() {
+    try {
+      if (this.supabase) {
+        const { data, error } = await this.supabase.from("attendance").select("*");
+        if (!error) return data;
+      }
+    } catch (e) {}
     return (await this.storageGet("attendance")) || [];
   },
   async setAttendance(attendance) {
@@ -187,18 +260,44 @@ export const StorageMethods = {
     await this.storageSet("audit", audit);
   },
   async logAudit(action, details) {
-    const logs = await this.getAudit();
-    logs.push({
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString(),
-      user: this.currentUser ? this.currentUser.staffId : "SYSTEM",
+    const logEntry = {
+      actor_id: this.currentUser ? this.currentUser.staffId : "SYSTEM",
       action,
       details,
-    });
-    await this.setAudit(logs);
+      timestamp: new Date().toISOString()
+    };
+
+    if (this.supabase) {
+      try {
+        await this.supabase.from("audit_logs").insert(logEntry);
+        return;
+      } catch (e) {
+        console.warn("Supabase audit log failed:", e.message);
+      }
+    }
+
+    // Fallback to local
+    const logs = (await this.storageGet("audit")) || [];
+    logs.push({ ...logEntry, id: Date.now().toString() });
+    await this.storageSet("audit", logs);
   },
   async getDepartments() {
+    try {
+      if (this.supabase) {
+        const { data, error } = await this.supabase.from("departments").select("name");
+        if (!error && data.length > 0) return data.map(d => d.name);
+      }
+    } catch (e) {}
     return (await this.storageGet("departments")) || [];
+  },
+  async dbGetRoles() {
+    try {
+      if (this.supabase) {
+        const { data, error } = await this.supabase.from("roles").select("name");
+        if (!error && data.length > 0) return data.map(r => r.name);
+      }
+    } catch (e) {}
+    return (await this.storageGet("roles")) || [];
   },
   async getWorkDays() {
     const rules = await this.getRules();
@@ -310,28 +409,24 @@ export const StorageMethods = {
 
     const attendance = [
       {
-        id: "1",
         staffId: "staff001",
         date: today,
         time: "08:45",
         status: "ON_TIME",
       },
       {
-        id: "2",
         staffId: "staff002",
         date: today,
         time: "09:15",
         status: "LATE",
       },
       {
-        id: "3",
         staffId: "staff001",
         date: yesterday,
         time: "08:50",
         status: "ON_TIME",
       },
       {
-        id: "4",
         staffId: "staff002",
         date: yesterday,
         time: "08:55",
@@ -374,14 +469,25 @@ export const StorageMethods = {
   // Initialize departments and roles from defaults if empty
   async loadDepartmentsAndRoles() {
     let departments = await this.getDepartments();
-    let roles = (await this.storageGet("roles")) || [];
+    let roles = await this.dbGetRoles();
 
     if (departments.length === 0) {
       departments = [...AppConfig.defaultDepartments];
+      // Seed to Supabase if possible
+      if (this.supabase) {
+         for (const name of departments) {
+            await this.supabase.from("departments").upsert({ name }, { onConflict: 'name' });
+         }
+      }
       await this.storageSet("departments", departments);
     }
     if (roles.length === 0) {
       roles = [...AppConfig.defaultRoles];
+      if (this.supabase) {
+         for (const name of roles) {
+            await this.supabase.from("roles").upsert({ name }, { onConflict: 'name' });
+         }
+      }
       await this.storageSet("roles", roles);
     }
   },
@@ -389,7 +495,7 @@ export const StorageMethods = {
   // Populate department and role <select> elements across forms
   async populateDeptRoleSelects() {
     const departments = await this.getDepartments();
-    const roles = (await this.storageGet("roles")) || [];
+    const roles = await this.dbGetRoles();
 
     const deptSelects = [
       "staffDepartment",

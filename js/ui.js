@@ -118,6 +118,9 @@ export const UIMethods = {
                 <a href="#" class="nav-item ${this.currentPage === 'staff' ? 'active' : ''}" data-page="staff" onclick="app.navigate('staff'); return false;">
                     <span class="material-icons">people</span><span>Staff Directory</span>
                 </a>
+                <a href="#" class="nav-item ${this.currentPage === 'bulkUpload' ? 'active' : ''}" data-page="bulkUpload" onclick="app.navigate('bulkUpload'); return false;">
+                    <span class="material-icons">cloud_upload</span><span>Bulk Staff Upload</span>
+                </a>
                 <a href="#" class="nav-item ${this.currentPage === 'rules' ? 'active' : ''}" data-page="rules" onclick="app.navigate('rules'); return false;">
                     <span class="material-icons">rule</span><span>Attendance Rules</span>
                 </a>
