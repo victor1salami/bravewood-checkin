@@ -3,6 +3,8 @@
 ## Description
 The Bravewood Staff Check-in System is a professional attendance and organizational management platform. It solves the challenge of distributed staff tracking by providing a real-time, cloud-synchronized dashboard. Originally a local-first application, it has been architected to primary Supabase integration to ensure data integrity across multiple devices and production reliability.
 
+**Live Demo:** [https://victor1salami.github.io/bravewood-checkin/?page=login](https://victor1salami.github.io/bravewood-checkin/?page=login)
+
 ---
 
 ## Table of Contents
