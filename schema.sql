@@ -1,35 +1,44 @@
 -- Bravewood Check-in Supabase Schema
+-- Run this script first to create the tables.
+
+-- WARNING: These will delete existing data in those tables!
+DROP TABLE IF EXISTS audit_logs CASCADE;
+DROP TABLE IF EXISTS attendance CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+DROP TABLE IF EXISTS roles CASCADE;
+DROP TABLE IF EXISTS departments CASCADE;
+DROP TABLE IF EXISTS system_rules CASCADE;
 
 -- 1. Lookups (Departments and Roles)
 CREATE TABLE IF NOT EXISTS departments (
-    id UUID PRIMARY KEY DEFAULT auth.uid(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT UNIQUE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS roles (
-    id UUID PRIMARY KEY DEFAULT auth.uid(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT UNIQUE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 2. Profiles (Users)
 CREATE TABLE IF NOT EXISTS profiles (
-    id UUID PRIMARY KEY DEFAULT auth.uid(),
-    staff_id TEXT UNIQUE NOT NULL,
-    password_hash TEXT, -- Currently stores plain text if migrating directly, but labeled for future security
-    name TEXT NOT NULL,
-    system_role TEXT DEFAULT 'STAFF' CHECK (system_role IN ('SUPER_ADMIN', 'ADMIN', 'STAFF')),
-    department TEXT REFERENCES departments(name),
-    department_role TEXT REFERENCES roles(name),
-    work_start_time TIME DEFAULT '09:00',
-    fingerprint_registered BOOLEAN DEFAULT FALSE,
-    profile_image TEXT, -- URL or Base64
-    password_created BOOLEAN DEFAULT FALSE,
-    security_question TEXT,
-    security_answer TEXT, -- Stored as lowercase in app
-    email TEXT,
-    phone TEXT,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "staffId" TEXT UNIQUE NOT NULL,
+    "password" TEXT, -- Current plain text storage for local mode migration
+    "name" TEXT NOT NULL,
+    "systemRole" TEXT DEFAULT 'STAFF',
+    "department" TEXT,
+    "departmentRole" TEXT,
+    "workStartTime" TEXT DEFAULT '09:00',
+    "fingerprint_registered" BOOLEAN DEFAULT FALSE,
+    "profileImage" TEXT,
+    "passwordCreated" BOOLEAN DEFAULT FALSE,
+    "securityQuestion" TEXT,
+    "securityAnswer" TEXT,
+    "email" TEXT,
+    "phone" TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -37,10 +46,10 @@ CREATE TABLE IF NOT EXISTS profiles (
 -- 3. Attendance
 CREATE TABLE IF NOT EXISTS attendance (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    staff_id TEXT REFERENCES profiles(staff_id),
-    date DATE NOT NULL DEFAULT CURRENT_DATE,
-    time TIME NOT NULL DEFAULT CURRENT_TIME,
-    status TEXT CHECK (status IN ('ON_TIME', 'LATE', 'ABSENT', 'EXCUSED')),
+    "staffId" TEXT REFERENCES profiles("staffId"),
+    "date" DATE NOT NULL DEFAULT CURRENT_DATE,
+    "time" TEXT NOT NULL,
+    "status" TEXT,
     lat DECIMAL(10, 8),
     lng DECIMAL(11, 8),
     created_at TIMESTAMPTZ DEFAULT NOW()
