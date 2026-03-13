@@ -14,6 +14,17 @@ DROP POLICY IF EXISTS "Users can view own attendance" ON attendance;
 DROP POLICY IF EXISTS "Admins can manage rules" ON system_rules;
 DROP POLICY IF EXISTS "Everyone can select rules" ON system_rules;
 
+-- Everyone can select rules (Essential for app configuration)
+CREATE POLICY "Allow public read access to system_rules" 
+ON system_rules FOR SELECT USING (true);
+
+-- Everyone can view lookup tables
+CREATE POLICY "Allow public read access to departments" 
+ON departments FOR SELECT USING (true);
+
+CREATE POLICY "Allow public read access to roles" 
+ON roles FOR SELECT USING (true);
+
 -- NOTE: These policies assume a custom claim or a specific field in the profiles table 
 -- Since we are currently using the Anon key and our own password logic, RLS is limited
 -- without proper Supabase Auth. 
@@ -27,21 +38,17 @@ CREATE POLICY "Public profiles are viewable by everyone"
 ON profiles FOR SELECT USING (true);
 
 CREATE POLICY "Users can update own profile" 
-ON profiles FOR UPDATE USING (auth.uid() = id);
+ON profiles FOR UPDATE USING (true); -- Temporary until Supabase Auth is active
 
 -- Attendance
 CREATE POLICY "Users can view own attendance" 
-ON attendance FOR SELECT USING (auth.uid()::text = staff_id);
+ON attendance FOR SELECT USING (true); -- Temporary until Supabase Auth is active
 
-CREATE POLICY "Admins can view all attendance" 
-ON attendance FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM profiles 
-    WHERE profiles.id = auth.uid() 
-    AND profiles.system_role IN ('ADMIN', 'SUPER_ADMIN')
-  )
-);
+CREATE POLICY "Users can insert attendance" 
+ON attendance FOR INSERT WITH CHECK (true); -- Temporary until Supabase Auth is active
 
 -- TO THE USER: 
--- To fully secure this, we need to switch from manual password management to Supabase Auth.
--- This SQL provides the foundation, but the application code needs to call `supabase.auth.signInWithPassword`.
+-- These policies are currently set to "true" (Public Read/Write) because 
+-- you are using custom password logic instead of Supabase Auth.
+-- Once you switch to Supabase Auth (Phase 7), we will tighten these 
+-- using (auth.uid() = id).
