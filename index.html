@@ -698,6 +698,10 @@
                 Add Staff
               </button>
             </div>
+            
+            <!-- Pagination container at top -->
+            <div id="staffPaginationTop" class="pagination-container" style="margin-bottom: 20px;"></div>
+            
             <div class="filters-row">
               <div class="search-box">
                 <span class="material-icons">search</span>
@@ -708,7 +712,23 @@
                   onkeyup="app.searchStaff()"
                 />
               </div>
+              <div style="display: flex; gap: 12px;">
+                <select id="staffDepartmentFilter" class="form-control" style="max-width: 180px;" onchange="app.filterStaff()">
+                  <option value="">All Departments</option>
+                </select>
+                <select id="staffRoleFilter" class="form-control" style="max-width: 180px;" onchange="app.filterStaff()">
+                  <option value="">All Roles</option>
+                </select>
+                <select id="staffSortBy" class="form-control" style="max-width: 180px;" onchange="app.sortStaff()">
+                  <option value="name-asc">Sort by Name (A-Z)</option>
+                  <option value="name-desc">Sort by Name (Z-A)</option>
+                  <option value="id-asc">Sort by Staff ID (Asc)</option>
+                  <option value="id-desc">Sort by Staff ID (Desc)</option>
+                  <option value="department">Sort by Department</option>
+                </select>
+              </div>
             </div>
+            
             <div class="table-container">
               <table>
                 <thead>
@@ -725,8 +745,8 @@
                 <tbody id="staffTable"></tbody>
               </table>
             </div>
-            <!-- Pagination container for staff directory -->
-            <div id="staffPagination" class="pagination-container"></div>
+            <!-- Pagination container at bottom -->
+            <div id="staffPagination" class="pagination-container" style="margin-top: 20px;"></div>
           </div>
         </div>
 

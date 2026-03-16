@@ -87,6 +87,7 @@ export const UIMethods = {
         switch(page) {
             case 'dashboard': await this.loadDashboard(); break;
             case 'staff': await this.loadStaff(); break;
+            case 'bulkUpload': /* No additional data loading needed */ break;
             case 'rules': await this.loadRules(); break;
             case 'reports': await this.loadReportFilters(); break;
             case 'audit': await this.loadAuditLog(); break;

@@ -22,8 +22,111 @@ export const StaffMethods = {
     // Initialize filtered data and reset to page 1
     this.filteredStaffData = staffList;
     this.currentStaffPage = 1;
+    
+    // Populate department and role filter dropdowns
+    this.populateStaffFilters(staffList);
+    
+    // Reset filters
+    document.getElementById("staffDepartmentFilter").value = "";
+    document.getElementById("staffRoleFilter").value = "";
+    document.getElementById("staffSortBy").value = "name-asc";
+    
     this.renderStaffTable(staffList);
     this.renderStaffPagination();
+  },
+  
+  /**
+   * Populate department and role filter dropdowns
+   */
+  populateStaffFilters(staffList) {
+    const departments = new Set(staffList.map(s => s.department).filter(Boolean));
+    const roles = new Set(staffList.map(s => s.departmentRole).filter(Boolean));
+    
+    const deptSelect = document.getElementById("staffDepartmentFilter");
+    const roleSelect = document.getElementById("staffRoleFilter");
+    
+    // Store original options
+    const deptOptions = Array.from(deptSelect.options).map(opt => opt.value);
+    const roleOptions = Array.from(roleSelect.options).map(opt => opt.value);
+    
+    // Keep the "All" option and add departments/roles
+    while (deptSelect.options.length > 1) deptSelect.remove(1);
+    while (roleSelect.options.length > 1) roleSelect.remove(1);
+    
+    Array.from(departments).sort().forEach(dept => {
+      const option = document.createElement("option");
+      option.value = dept;
+      option.textContent = dept;
+      deptSelect.appendChild(option);
+    });
+    
+    Array.from(roles).sort().forEach(role => {
+      const option = document.createElement("option");
+      option.value = role;
+      option.textContent = role;
+      roleSelect.appendChild(option);
+    });
+  },
+  
+  /**
+   * Filter and search staff by department, role, and search query
+   */
+  async filterStaff() {
+    const query = document.getElementById("staffSearch").value.toLowerCase();
+    const department = document.getElementById("staffDepartmentFilter").value;
+    const role = document.getElementById("staffRoleFilter").value;
+    
+    const users = await this.getUsers();
+    let staffList = users.filter((u) => u.systemRole === "STAFF");
+    
+    // Apply filters
+    staffList = staffList.filter(u => {
+      const matchesSearch = query === "" || 
+        u.name.toLowerCase().includes(query) ||
+        u.staffId.toLowerCase().includes(query) ||
+        (u.department && u.department.toLowerCase().includes(query)) ||
+        (u.departmentRole && u.departmentRole.toLowerCase().includes(query));
+      
+      const matchesDept = department === "" || u.department === department;
+      const matchesRole = role === "" || u.departmentRole === role;
+      
+      return matchesSearch && matchesDept && matchesRole;
+    });
+    
+    // Reset to first page on filter change
+    this.currentStaffPage = 1;
+    this.filteredStaffData = staffList;
+    this.renderStaffTable(staffList);
+  },
+  
+  /**
+   * Sort staff by selected criteria
+   */
+  async sortStaff() {
+    const sortBy = document.getElementById("staffSortBy").value;
+    let sortedList = [...this.filteredStaffData];
+    
+    switch(sortBy) {
+      case "name-asc":
+        sortedList.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "name-desc":
+        sortedList.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case "id-asc":
+        sortedList.sort((a, b) => a.staffId.localeCompare(b.staffId));
+        break;
+      case "id-desc":
+        sortedList.sort((a, b) => b.staffId.localeCompare(a.staffId));
+        break;
+      case "department":
+        sortedList.sort((a, b) => (a.department || "").localeCompare(b.department || ""));
+        break;
+    }
+    
+    this.currentStaffPage = 1;
+    this.filteredStaffData = sortedList;
+    this.renderStaffTable(sortedList);
   },
 
   /**
@@ -84,20 +187,29 @@ export const StaffMethods = {
    * Shows Previous/Next, numbered pages, First/Last buttons.
    */
   renderStaffPagination() {
-    const container = document.getElementById("staffPagination");
-    if (!container) return;
+    const containerBottom = document.getElementById("staffPagination");
+    const containerTop = document.getElementById("staffPaginationTop");
+    
+    if (!containerBottom && !containerTop) return;
 
     const totalItems = this.filteredStaffData.length;
     const totalPages = Math.ceil(totalItems / this.staffPerPage);
 
     // Hide pagination if only one page or no results
     if (totalPages <= 1) {
-      container.innerHTML = "";
-      container.style.display = "none";
+      if (containerBottom) {
+        containerBottom.innerHTML = "";
+        containerBottom.style.display = "none";
+      }
+      if (containerTop) {
+        containerTop.innerHTML = "";
+        containerTop.style.display = "none";
+      }
       return;
     }
 
-    container.style.display = "flex";
+    if (containerBottom) containerBottom.style.display = "flex";
+    if (containerTop) containerTop.style.display = "flex";
 
     // Calculate pagination bounds for page info display
     const startIndex = (this.currentStaffPage - 1) * this.staffPerPage;
@@ -169,7 +281,9 @@ export const StaffMethods = {
       </span>
     `;
 
-    container.innerHTML = html;
+    // Render to both top and bottom containers
+    if (containerTop) containerTop.innerHTML = html;
+    if (containerBottom) containerBottom.innerHTML = html;
   },
 
   /**
