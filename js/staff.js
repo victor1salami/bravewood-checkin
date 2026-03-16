@@ -712,4 +712,278 @@ export const StaffMethods = {
     if (uploadResults) uploadResults.classList.add("hidden");
     if (bulkImageResults) bulkImageResults.classList.add("hidden");
   },
+
+  /**
+   * Handle CSV file selection and preview
+   */
+  handleCSVFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const fileName = document.getElementById("selectedFileName");
+    fileName.textContent = `Selected: ${file.name}`;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const lines = e.target.result.split("\n").filter(line => line.trim());
+      if (lines.length < 2) {
+        this.showToast("CSV file must have a header row and at least one data row", "error");
+        return;
+      }
+
+      const headers = lines[0].split(",").map(h => h.trim());
+      const previewRows = lines.slice(1, 6).map(line => {
+        return line.split(",").map(cell => cell.trim());
+      });
+
+      this.displayCSVPreview(headers, previewRows);
+      document.getElementById("importBtn").style.display = "inline-block";
+    };
+    reader.readAsText(file);
+  },
+
+  /**
+   * Display CSV preview in table format
+   */
+  displayCSVPreview(headers, rows) {
+    const table = document.getElementById("csvPreviewTable");
+    const thead = table.querySelector("thead");
+    const tbody = table.querySelector("tbody");
+
+    // Create header
+    thead.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
+
+    // Create body rows
+    tbody.innerHTML = rows.map(row => {
+      return `<tr>${row.map(cell => `<td>${cell || ""}</td>`).join("")}</tr>`;
+    }).join("");
+
+    document.getElementById("csvPreviewSection").style.display = "block";
+  },
+
+  /**
+   * Import CSV data into the system
+   */
+  async importCSVData() {
+    const fileInput = document.getElementById("csvFileInput");
+    const file = fileInput.files[0];
+    if (!file) {
+      this.showToast("Please select a CSV file", "error");
+      return;
+    }
+
+    document.getElementById("importBtn").disabled = true;
+    document.getElementById("importBtn").innerHTML = '<span class="material-icons" style="font-size: 16px; animation: spin 1s linear infinite;">hourglass_empty</span> Importing...';
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const lines = e.target.result.split("\n").filter(line => line.trim());
+      const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+      
+      let success = 0;
+      let failed = 0;
+      let errors = [];
+
+      const users = await this.getUsers();
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(",").map(v => v.trim());
+        
+        if (values.length < headers.length) continue;
+
+        const row = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index];
+        });
+
+        // Validate required fields
+        if (!row.staffid || !row.name || !row.department) {
+          errors.push(`Row ${i + 1}: Missing required fields (staffId, name, department)`);
+          failed++;
+          continue;
+        }
+
+        // Check if staff already exists
+        if (users.some(u => u.staffId === row.staffid)) {
+          errors.push(`Row ${i + 1}: Staff ID "${row.staffid}" already exists`);
+          failed++;
+          continue;
+        }
+
+        // Create new user
+        try {
+          const randomQuestions = [
+            "What is your mother's maiden name?",
+            "What was the name of your first pet?",
+            "What city were you born in?"
+          ];
+          const randomQ = randomQuestions[Math.floor(Math.random() * randomQuestions.length)];
+
+          users.push({
+            staffId: row.staffid,
+            password: row.staffid.toLowerCase(),
+            name: row.name,
+            systemRole: "STAFF",
+            department: row.department,
+            departmentRole: row.departmentrole || "Staff",
+            workStartTime: row.workstarttime || "09:00",
+            workEndTime: row.workendtime || "17:00",
+            fingerprint_registered: false,
+            profileImage: null,
+            passwordCreated: false,
+            securityQuestion: randomQ,
+            securityAnswer: row.name.split(" ")[0].toLowerCase(),
+            email: row.email || "",
+            phone: row.phone || "",
+            createdAt: new Date().toISOString()
+          });
+          success++;
+        } catch (error) {
+          errors.push(`Row ${i + 1}: Error creating staff - ${error.message}`);
+          failed++;
+        }
+      }
+
+      // Save updated users
+      await this.setUsers(users);
+
+      // Display results
+      this.displayImportResults(success, failed, errors);
+      
+      document.getElementById("importBtn").disabled = false;
+      document.getElementById("importBtn").innerHTML = '<span class="material-icons" style="font-size: 16px;">cloud_upload</span> Import Staff';
+
+      if (success > 0) {
+        this.showToast(`Successfully imported ${success} staff member${success !== 1 ? 's' : ''}!`, "success");
+        this.logAudit("BULK_CSV_IMPORT", `Imported ${success} staff, ${failed} failed`);
+        
+        // Refresh staff list if on staff page
+        if (this.currentPage === "staff") {
+          this.loadStaff();
+        }
+      }
+    };
+    reader.readAsText(file);
+  },
+
+  /**
+   * Display import results
+   */
+  displayImportResults(success, failed, errors) {
+    const resultsSection = document.getElementById("uploadResultsSection");
+    const resultsContent = document.getElementById("resultsContent");
+
+    let html = `
+      <div style="margin-bottom: 16px;">
+        <h4 style="margin-bottom: 8px;">Import Results</h4>
+        <div style="display: flex; gap: 16px; margin-bottom: 12px;">
+          <div style="flex: 1; padding: 12px; background: rgba(16, 124, 16, 0.1); border-radius: 6px; text-align: center;">
+            <div style="font-size: 24px; font-weight: 700; color: var(--success);">${success}</div>
+            <div style="font-size: 12px; color: var(--success);">Successful</div>
+          </div>
+          <div style="flex: 1; padding: 12px; background: rgba(164, 38, 44, 0.1); border-radius: 6px; text-align: center;">
+            <div style="font-size: 24px; font-weight: 700; color: var(--danger);">${failed}</div>
+            <div style="font-size: 12px; color: var(--danger);">Failed</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    if (errors.length > 0) {
+      html += `
+        <div style="margin-top: 12px;">
+          <h4 style="margin-bottom: 8px; color: var(--danger);">Errors</h4>
+          <div style="max-height: 200px; overflow-y: auto; padding: 8px; background: rgba(164, 38, 44, 0.05); border-radius: 6px; font-size: 12px;">
+            ${errors.slice(0, 10).map(err => `<div style="padding: 4px 0; color: var(--text-secondary);">• ${err}</div>`).join("")}
+            ${errors.length > 10 ? `<div style="padding: 4px 0; color: var(--text-secondary);">... and ${errors.length - 10} more errors</div>` : ""}
+          </div>
+        </div>
+      `;
+    }
+
+    resultsContent.innerHTML = html;
+    resultsSection.style.display = "block";
+  },
+
+  /**
+   * Download CSV template for bulk upload
+   */
+  downloadCSVTemplate() {
+    const headers = ["staffId", "name", "department", "departmentRole", "email", "phone", "workStartTime", "workEndTime"];
+    const sampleData = [
+      ["EMP001", "John Doe", "IT Department", "Developer", "john@example.com", "555-0001", "09:00", "17:00"],
+      ["EMP002", "Jane Smith", "Marketing", "Manager", "jane@example.com", "555-0002", "08:30", "17:30"],
+      ["EMP003", "Bob Johnson", "HR", "Recruiter", "bob@example.com", "555-0003", "09:00", "17:00"]
+    ];
+
+    const csvContent = [
+      headers.join(","),
+      ...sampleData.map(row => row.join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "staff_import_template.csv";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  /**
+   * Reset bulk upload form
+   */
+  resetBulkUpload() {
+    document.getElementById("csvFileInput").value = "";
+    document.getElementById("selectedFileName").textContent = "";
+    document.getElementById("csvPreviewSection").style.display = "none";
+    document.getElementById("uploadResultsSection").style.display = "none";
+    document.getElementById("importBtn").style.display = "none";
+  },
+
+  /**
+   * Handle drag over event
+   */
+  handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const area = document.getElementById("fileUploadArea");
+    if (area) area.classList.add("dragover");
+  },
+
+  /**
+   * Handle drag leave event
+   */
+  handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const area = document.getElementById("fileUploadArea");
+    if (area) area.classList.remove("dragover");
+  },
+
+  /**
+   * Handle file drop event
+   */
+  handleFileDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const area = document.getElementById("fileUploadArea");
+    if (area) area.classList.remove("dragover");
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const csvFile = Array.from(files).find(f => f.type === "text/csv" || f.name.endsWith(".csv"));
+      if (csvFile) {
+        const fileInput = document.getElementById("csvFileInput");
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(csvFile);
+        fileInput.files = dataTransfer.files;
+        this.handleCSVFileSelect({ target: { files: [csvFile] } });
+      } else {
+        this.showToast("Please drop a CSV file", "error");
+      }
+    }
+  }
 };

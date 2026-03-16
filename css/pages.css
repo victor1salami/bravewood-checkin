@@ -238,3 +238,19 @@
     color: var(--danger);
     margin-bottom: 20px;
 }
+
+/* === File Upload Area === */
+.file-upload-area {
+    transition: all 0.3s ease;
+}
+.file-upload-area:hover {
+    background-color: var(--glass);
+    border-color: var(--primary);
+    cursor: pointer;
+}
+.file-upload-area.dragover {
+    background-color: var(--primary);
+    background-color: rgba(3, 9, 64, 0.1);
+    border-color: var(--primary);
+    transform: scale(1.01);
+}

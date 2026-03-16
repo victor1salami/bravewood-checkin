@@ -750,6 +750,90 @@
           </div>
         </div>
 
+        <!-- Bulk Upload Page -->
+        <div id="bulkUploadPage" class="page-content hidden">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Bulk Staff Upload</h3>
+              <p class="text-muted" style="margin-top: 8px; font-size: 14px;">Import multiple staff members from a CSV file</p>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 20px;">
+              <label>CSV File Format</label>
+              <p class="text-muted" style="font-size: 13px; margin-bottom: 12px;">
+                Required columns: staffId, name, department, departmentRole, email, phone<br/>
+                Optional columns: workStartTime, workEndTime
+              </p>
+              <button class="btn btn-secondary" onclick="app.downloadCSVTemplate()" style="margin-bottom: 12px;">
+                <span class="material-icons" style="font-size: 16px;">download</span>
+                Download CSV Template
+              </button>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 20px;">
+              <label for="csvFileInput">Select CSV File *</label>
+              <div class="file-upload-area" id="fileUploadArea" style="
+                border: 2px dashed var(--border);
+                border-radius: 8px;
+                padding: 32px;
+                text-align: center;
+                cursor: pointer;
+                transition: all 0.3s ease;
+              "
+              ondrop="app.handleFileDrop(event)"
+              ondragover="app.handleDragOver(event)"
+              ondragleave="app.handleDragLeave(event)">
+                <span class="material-icons" style="font-size: 48px; color: var(--text-secondary); display: block; margin-bottom: 12px;">upload_file</span>
+                <p style="font-weight: 500; margin-bottom: 4px;">Drag and drop your CSV file here</p>
+                <p class="text-muted" style="font-size: 13px; margin-bottom: 12px;">or click to browse</p>
+                <input
+                  type="file"
+                  id="csvFileInput"
+                  accept=".csv"
+                  style="display: none;"
+                  onchange="app.handleCSVFileSelect(event)"
+                />
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('csvFileInput').click();">
+                  Browse Files
+                </button>
+              </div>
+              <p class="text-muted" style="font-size: 12px; margin-top: 8px;" id="selectedFileName"></p>
+            </div>
+
+            <div id="csvPreviewSection" style="display: none; margin-bottom: 20px;">
+              <label>Preview (First 5 rows)</label>
+              <div class="table-container">
+                <table id="csvPreviewTable">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="uploadResultsSection" style="display: none;">
+              <div id="uploadResults" style="
+                padding: 16px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+                background-color: var(--surface);
+                border: 1px solid var(--border);
+              ">
+                <div id="resultsContent"></div>
+              </div>
+            </div>
+
+            <div class="form-actions" style="display: flex; gap: 12px; margin-top: 24px;">
+              <button class="btn btn-primary" onclick="app.importCSVData()" id="importBtn" style="display: none;">
+                <span class="material-icons" style="font-size: 16px;">cloud_upload</span>
+                Import Staff
+              </button>
+              <button class="btn btn-secondary" onclick="app.resetBulkUpload()">
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div id="staffProgressPage" class="page-content hidden">
           <div class="staff-progress-grid" id="staffProgressGrid"></div>
           <div class="card">
