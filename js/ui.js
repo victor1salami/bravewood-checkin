@@ -118,9 +118,6 @@ export const UIMethods = {
                 <a href="#" class="nav-item ${this.currentPage === 'staff' ? 'active' : ''}" data-page="staff" onclick="app.navigate('staff'); return false;">
                     <span class="material-icons">people</span><span>Staff Directory</span>
                 </a>
-                <a href="#" class="nav-item ${this.currentPage === 'bulkUpload' ? 'active' : ''}" data-page="bulkUpload" onclick="app.navigate('bulkUpload'); return false;">
-                    <span class="material-icons">cloud_upload</span><span>Bulk Staff Upload</span>
-                </a>
                 <a href="#" class="nav-item ${this.currentPage === 'rules' ? 'active' : ''}" data-page="rules" onclick="app.navigate('rules'); return false;">
                     <span class="material-icons">rule</span><span>Attendance Rules</span>
                 </a>
@@ -171,7 +168,7 @@ export const UIMethods = {
 
     showToast(message, type = 'info') {
         const container = document.getElementById('toastContainer');
-        if (!container) return; // In case toastContainer is not yet added to DOM
+        if (!container) return;
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         const icons = { success: 'check_circle', error: 'error', warning: 'warning', info: 'info' };
@@ -371,6 +368,7 @@ export const UIMethods = {
         await this.loadProfile();
     },
 
+    // ======================== CORRECTED EMAIL FUNCTION ========================
     async emailMyData() {
         const users = await this.getUsers();
         const user = users.find(u => u.staffId === this.currentUser.staffId);
@@ -387,67 +385,38 @@ export const UIMethods = {
         }
 
         const attendance = await this.getAttendance();
-        const myAttendance = attendance.filter(a => a.staffId === user.staffId).sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
+        const myAttendance = attendance
+            .filter(a => a.staffId === user.staffId)
+            .sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
 
-        // Build comprehensive email content
-        let emailBody = `Hello ${user.name},\n\n`;
-        emailBody += `Here is your attendance data from Bravewood Staff Check-In System:\n\n`;
-        emailBody += `========================================\n`;
-        emailBody += `PROFILE INFORMATION\n`;
-        emailBody += `========================================\n`;
-        emailBody += `Staff ID: ${user.staffId}\n`;
-        emailBody += `Name: ${user.name}\n`;
-        emailBody += `Department: ${user.department || 'N/A'}\n`;
-        emailBody += `Role: ${user.departmentRole || 'N/A'}\n`;
-        emailBody += `Work Start Time: ${user.workStartTime || '09:00'}\n\n`;
-
-        emailBody += `========================================\n`;
-        emailBody += `ATTENDANCE SUMMARY\n`;
-        emailBody += `========================================\n`;
         const totalDays = myAttendance.length;
         const onTimeDays = myAttendance.filter(a => a.status === 'ON_TIME').length;
         const lateDays = myAttendance.filter(a => a.status === 'LATE').length;
         const punctualityRate = totalDays > 0 ? Math.round((onTimeDays / totalDays) * 100) : 0;
 
-        emailBody += `Total Check-ins: ${totalDays}\n`;
-        emailBody += `On Time: ${onTimeDays}\n`;
-        emailBody += `Late: ${lateDays}\n`;
-        emailBody += `Punctuality Rate: ${punctualityRate}%\n\n`;
+        // Prepare EmailJS template variables
+        const templateParams = {
+            email: user.email,  // ← must match your EmailJS template variable
+            to_name: user.name,
+            staff_id: user.staffId,
+            department: user.department || 'N/A',
+            role: user.departmentRole || 'N/A',
+            total_checkins: totalDays,
+            on_time: onTimeDays,
+            late: lateDays,
+            punctuality_rate: punctualityRate,
+            attendance_records: myAttendance.map(a => `${a.date} - ${a.time} - ${a.status}`).join("\n"),
+            report_date: new Date().toLocaleDateString()
+        };
 
-        emailBody += `========================================\n`;
-        emailBody += `DETAILED ATTENDANCE RECORDS\n`;
-        emailBody += `========================================\n`;
-
-        if (myAttendance.length === 0) {
-            emailBody += 'No attendance records found.\n';
-        } else {
-            myAttendance.forEach((a, index) => {
-                emailBody += `${index + 1}. ${a.date} - ${a.time} - ${a.status}\n`;
-            });
-        }
-
-        emailBody += `\n========================================\n`;
-        emailBody += `Report generated on: ${new Date().toLocaleString()}\n`;
-        emailBody += `========================================\n\n`;
-        emailBody += `Best regards,\nBravewood Staff Check-In System`;
-
-        const subject = `Your Attendance Data - ${new Date().toLocaleDateString()}`;
-        const mailtoLink = `mailto:${user.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
-        
-        // Try to open email client with fallback
         try {
-            const emailWindow = window.open(mailtoLink, '_blank');
-            if (emailWindow) {
-                this.showToast('Email client opened! Please send the email.', 'success');
-            } else {
-                // Fallback: copy to clipboard
-                this.copyToClipboard(emailBody);
-                this.showToast('Email content copied to clipboard! Please paste in your email client.', 'warning');
-            }
-        } catch (e) {
-            this.copyToClipboard(emailBody);
-            this.showToast('Email content copied to clipboard! Please paste in your email client.', 'warning');
+            await emailjs.send('service_6otwsbh', 'template_6vh9u0k', templateParams);
+            this.showToast('Attendance email sent successfully!', 'success');
+        } catch (err) {
+            console.error(err);
+            this.showToast('Failed to send email. Check console.', 'error');
         }
+
         await this.logAudit('EMAIL_DATA', `User ${user.staffId} requested data email to ${user.email}`);
     },
 
