@@ -10,15 +10,38 @@ import { AppConfig } from "./config.js";
 export const StaffMethods = {
   currentEnrollStaffId: null,
 
+  // ============ PAGINATION STATE ============
+  currentStaffPage: 1,
+  staffPerPage: 50,
+  filteredStaffData: [],
+
   async loadStaff() {
     await this.populateDeptRoleSelects();
     const users = await this.getUsers();
     const staffList = users.filter((u) => u.systemRole === "STAFF");
+    // Initialize filtered data and reset to page 1
+    this.filteredStaffData = staffList;
+    this.currentStaffPage = 1;
     this.renderStaffTable(staffList);
+    this.renderStaffPagination();
   },
 
+  /**
+   * Renders the staff table with pagination support.
+   * Accepts full array but only renders current page slice.
+   * @param {Array} staffList - Full array of staff to display (may be filtered)
+   */
   renderStaffTable(staffList) {
-    document.getElementById("staffTable").innerHTML = staffList
+    // Store the full filtered dataset for pagination calculations
+    this.filteredStaffData = staffList || [];
+
+    // Calculate pagination bounds
+    const startIndex = (this.currentStaffPage - 1) * this.staffPerPage;
+    const endIndex = startIndex + this.staffPerPage;
+    const paginatedStaff = this.filteredStaffData.slice(startIndex, endIndex);
+
+    // Render the current page of staff
+    document.getElementById("staffTable").innerHTML = paginatedStaff
       .map(
         (staff) => `
             <tr>
@@ -39,6 +62,151 @@ export const StaffMethods = {
         `,
       )
       .join("");
+
+    // Show empty state if no results
+    if (paginatedStaff.length === 0) {
+      document.getElementById("staffTable").innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+            <span class="material-icons" style="font-size: 48px; display: block; margin-bottom: 12px;">people_outline</span>
+            No staff members found
+          </td>
+        </tr>
+      `;
+    }
+
+    // Update pagination controls
+    this.renderStaffPagination();
+  },
+
+  /**
+   * Renders pagination controls based on current state.
+   * Shows Previous/Next, numbered pages, First/Last buttons.
+   */
+  renderStaffPagination() {
+    const container = document.getElementById("staffPagination");
+    if (!container) return;
+
+    const totalItems = this.filteredStaffData.length;
+    const totalPages = Math.ceil(totalItems / this.staffPerPage);
+
+    // Hide pagination if only one page or no results
+    if (totalPages <= 1) {
+      container.innerHTML = "";
+      container.style.display = "none";
+      return;
+    }
+
+    container.style.display = "flex";
+
+    // Calculate pagination bounds for page info display
+    const startIndex = (this.currentStaffPage - 1) * this.staffPerPage;
+    const endIndex = startIndex + this.staffPerPage;
+
+    // Calculate visible page range (show max 5 page numbers)
+    let startPage = Math.max(1, this.currentStaffPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    if (endPage - startPage < 4) {
+      startPage = Math.max(1, endPage - 4);
+    }
+
+    let html = "";
+
+    // First button
+    html += `
+      <button class="pagination-btn" 
+              onclick="app.changeStaffPage(1)" 
+              ${this.currentStaffPage === 1 ? "disabled" : ""}
+              title="First page">
+        <span class="material-icons" style="font-size: 16px;">first_page</span>
+      </button>
+    `;
+
+    // Previous button
+    html += `
+      <button class="pagination-btn" 
+              onclick="app.prevStaffPage()" 
+              ${this.currentStaffPage === 1 ? "disabled" : ""}
+              title="Previous page">
+        <span class="material-icons" style="font-size: 16px;">chevron_left</span>
+      </button>
+    `;
+
+    // Page number buttons
+    for (let i = startPage; i <= endPage; i++) {
+      html += `
+        <button class="pagination-btn ${i === this.currentStaffPage ? "active" : ""}" 
+                onclick="app.changeStaffPage(${i})">
+          ${i}
+        </button>
+      `;
+    }
+
+    // Next button
+    html += `
+      <button class="pagination-btn" 
+              onclick="app.nextStaffPage()" 
+              ${this.currentStaffPage === totalPages ? "disabled" : ""}
+              title="Next page">
+        <span class="material-icons" style="font-size: 16px;">chevron_right</span>
+      </button>
+    `;
+
+    // Last button
+    html += `
+      <button class="pagination-btn" 
+              onclick="app.changeStaffPage(${totalPages})" 
+              ${this.currentStaffPage === totalPages ? "disabled" : ""}
+              title="Last page">
+        <span class="material-icons" style="font-size: 16px;">last_page</span>
+      </button>
+    `;
+
+    // Page info
+    html += `
+      <span class="pagination-info">
+        ${startIndex + 1}-${Math.min(endIndex, totalItems)} of ${totalItems}
+      </span>
+    `;
+
+    container.innerHTML = html;
+  },
+
+  /**
+   * Changes to a specific page number.
+   * @param {number} page - Page number to navigate to
+   */
+  changeStaffPage(page) {
+    const totalPages = Math.ceil(this.filteredStaffData.length / this.staffPerPage);
+    if (page < 1 || page > totalPages) return;
+
+    this.currentStaffPage = page;
+    this.renderStaffTable(this.filteredStaffData);
+
+    // Scroll to top of table for better UX
+    const tableContainer = document.querySelector("#staffPage .table-container");
+    if (tableContainer) {
+      tableContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  },
+
+  /**
+   * Navigates to the next page.
+   */
+  nextStaffPage() {
+    const totalPages = Math.ceil(this.filteredStaffData.length / this.staffPerPage);
+    if (this.currentStaffPage < totalPages) {
+      this.changeStaffPage(this.currentStaffPage + 1);
+    }
+  },
+
+  /**
+   * Navigates to the previous page.
+   */
+  prevStaffPage() {
+    if (this.currentStaffPage > 1) {
+      this.changeStaffPage(this.currentStaffPage - 1);
+    }
   },
 
   toggleActionMenu(btn, staffId) {
@@ -78,6 +246,10 @@ export const StaffMethods = {
     if (menu) menu.classList.remove("active");
   },
 
+  /**
+   * Search staff by name, ID, department, or role.
+   * Resets to page 1 when search is performed.
+   */
   async searchStaff() {
     const query = document.getElementById("staffSearch").value.toLowerCase();
     const users = await this.getUsers();
@@ -89,6 +261,8 @@ export const StaffMethods = {
           (u.department && u.department.toLowerCase().includes(query)) ||
           (u.departmentRole && u.departmentRole.toLowerCase().includes(query))),
     );
+    // Reset to first page on new search
+    this.currentStaffPage = 1;
     this.renderStaffTable(staffList);
   },
 
@@ -172,7 +346,7 @@ export const StaffMethods = {
         Math.floor(Math.random() * AppConfig.securityQuestions.length)
       ];
 
-    const newUser = {
+    users.push({
       staffId,
       password: staffId.toLowerCase(),
       name,
@@ -187,24 +361,19 @@ export const StaffMethods = {
       securityAnswer: name.split(" ")[0].toLowerCase(),
       email: "",
       phone: "",
-    };
+    });
 
-    try {
-      await this.dbUpsertUser(newUser);
-      await this.logAudit(
-        "STAFF_ADD",
-        `Added staff: ${name} (${staffId}) - ${departmentRole} in ${department}`,
-      );
-      this.showToast(
-        "Staff added! They must create password on first login.",
-        "success",
-      );
-      this.closeModal("addStaffModal");
-      await this.loadStaff();
-    } catch (err) {
-      console.error("Save staff failed:", err);
-      this.showToast("Failed to save staff to database.", "error");
-    }
+    await this.setUsers(users);
+    await this.logAudit(
+      "STAFF_ADD",
+      `Added staff: ${name} (${staffId}) - ${departmentRole} in ${department}`,
+    );
+    this.showToast(
+      "Staff added! They must create password on first login.",
+      "success",
+    );
+    this.closeModal("addStaffModal");
+    await this.loadStaff();
   },
 
   async updateStaff(event) {
@@ -223,7 +392,7 @@ export const StaffMethods = {
     const oldRole = users[index].departmentRole;
     const oldSystemRole = users[index].systemRole;
 
-    const updatedUser = {
+    users[index] = {
       ...users[index],
       name,
       department,
@@ -231,26 +400,21 @@ export const StaffMethods = {
       workStartTime,
       systemRole: isAdmin ? "ADMIN" : "STAFF",
     };
+    await this.setUsers(users);
 
-    try {
-      await this.dbUpsertUser(updatedUser);
-      let changes = [];
-      if (oldRole !== departmentRole)
-        changes.push(`Role: ${oldRole} -> ${departmentRole}`);
-      if (oldSystemRole !== updatedUser.systemRole)
-        changes.push(`Access: ${oldSystemRole} -> ${updatedUser.systemRole}`);
+    let changes = [];
+    if (oldRole !== departmentRole)
+      changes.push(`Role: ${oldRole} -> ${departmentRole}`);
+    if (oldSystemRole !== users[index].systemRole)
+      changes.push(`Access: ${oldSystemRole} -> ${users[index].systemRole}`);
 
-      await this.logAudit(
-        "STAFF_EDIT",
-        `Updated: ${name} (${staffId})${changes.length ? " - " + changes.join(", ") : ""}`,
-      );
-      this.showToast("Staff updated!", "success");
-      this.closeModal("editStaffModal");
-      await this.loadStaff();
-    } catch (err) {
-      console.error("Update staff failed:", err);
-      this.showToast("Failed to update staff in database.", "error");
-    }
+    await this.logAudit(
+      "STAFF_EDIT",
+      `Updated: ${name} (${staffId})${changes.length ? " - " + changes.join(", ") : ""}`,
+    );
+    this.showToast("Staff updated!", "success");
+    this.closeModal("editStaffModal");
+    await this.loadStaff();
   },
 
   async deleteStaff(staffId) {
@@ -258,19 +422,18 @@ export const StaffMethods = {
     const users = await this.getUsers();
     const staff = users.find((u) => u.staffId === staffId);
 
-    try {
-      await this.dbDeleteUser(staffId);
-      // Optional: Handle attendance cleanup if needed, but dbDeleteUser handles profiles
-      await this.logAudit(
-        "STAFF_DELETE",
-        `Deleted: ${staff ? staff.name : staffId} (${staffId})`,
-      );
-      this.showToast("Staff deleted!", "success");
-      await this.loadStaff();
-    } catch (err) {
-      console.error("Delete staff failed:", err);
-      this.showToast("Failed to delete staff from database.", "error");
-    }
+    const filtered = users.filter((u) => u.staffId !== staffId);
+    await this.setUsers(filtered);
+
+    const attendance = await this.getAttendance();
+    await this.setAttendance(attendance.filter((a) => a.staffId !== staffId));
+
+    await this.logAudit(
+      "STAFF_DELETE",
+      `Deleted: ${staff ? staff.name : staffId} (${staffId})`,
+    );
+    this.showToast("Staff deleted!", "success");
+    await this.loadStaff();
   },
 
   // Fingerprint enrollment
@@ -325,11 +488,17 @@ export const StaffMethods = {
         if (cols.length < 5) continue;
         const [staffId, name, department, departmentRole, workStartTime] = cols;
 
+        if (users.some((u) => u.staffId === staffId)) {
+          failed++;
+          errors.push(`Row ${i}: ${staffId} exists`);
+          continue;
+        }
+
         const randomQ =
           AppConfig.securityQuestions[
             Math.floor(Math.random() * AppConfig.securityQuestions.length)
           ];
-        const newUser = {
+        users.push({
           staffId,
           password: staffId.toLowerCase(),
           name,
@@ -344,18 +513,11 @@ export const StaffMethods = {
           securityAnswer: name.split(" ")[0].toLowerCase(),
           email: "",
           phone: "",
-        };
-
-        try {
-          await this.dbUpsertUser(newUser);
-          success++;
-        } catch (err) {
-          console.error(`Bulk upload failed for ${staffId}:`, err);
-          failed++;
-          errors.push(`Row ${i} (${staffId}): ${err.message || "Save failed"}`);
-        }
+        });
+        success++;
       }
 
+      await this.setUsers(users);
       document.getElementById("uploadSuccess").textContent = success;
       document.getElementById("uploadFailed").textContent = failed;
       document.getElementById("uploadErrors").innerHTML = errors
@@ -363,10 +525,7 @@ export const StaffMethods = {
         .join("");
       document.getElementById("uploadResults").classList.remove("hidden");
       await this.logAudit("BULK_UPLOAD", `CSV: ${success} success, ${failed} failed`);
-      if (success > 0) {
-        this.showToast(`${success} staff uploaded!`, "success");
-        await this.loadStaff();
-      }
+      if (success > 0) this.showToast(`${success} staff uploaded!`, "success");
     };
     reader.readAsText(file);
   },
