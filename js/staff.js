@@ -97,6 +97,7 @@ export const StaffMethods = {
     this.currentStaffPage = 1;
     this.filteredStaffData = staffList;
     this.renderStaffTable(staffList);
+    this.renderStaffPagination();
   },
   
   /**
@@ -127,6 +128,7 @@ export const StaffMethods = {
     this.currentStaffPage = 1;
     this.filteredStaffData = sortedList;
     this.renderStaffTable(sortedList);
+    this.renderStaffPagination();
   },
 
   /**
@@ -377,7 +379,9 @@ export const StaffMethods = {
     );
     // Reset to first page on new search
     this.currentStaffPage = 1;
+    this.filteredStaffData = staffList;
     this.renderStaffTable(staffList);
+    this.renderStaffPagination();
   },
 
   async openAddStaffModal() {
