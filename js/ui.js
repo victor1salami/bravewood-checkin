@@ -87,6 +87,7 @@ export const UIMethods = {
         switch(page) {
             case 'dashboard': await this.loadDashboard(); break;
             case 'staff': await this.loadStaff(); break;
+            case 'bulkUpload': await this.clearBulkUploadMessages(); break;
             case 'rules': await this.loadRules(); break;
             case 'reports': await this.loadReportFilters(); break;
             case 'audit': await this.loadAuditLog(); break;
@@ -126,6 +127,9 @@ export const UIMethods = {
                 </a>
                 <a href="#" class="nav-item ${this.currentPage === 'audit' ? 'active' : ''}" data-page="audit" onclick="app.navigate('audit'); return false;">
                     <span class="material-icons">history</span><span>Audit Log</span>
+                </a>
+                <a href="#" class="nav-item ${this.currentPage === 'bulkUpload' ? 'active' : ''}" data-page="bulkUpload" onclick="app.navigate('bulkUpload'); return false;">
+                    <span class="material-icons">upload_file</span><span>Bulk Upload</span>
                 </a>
             `;
             if (role === 'SUPER_ADMIN') {
