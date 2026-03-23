@@ -164,6 +164,40 @@ Object.assign(app, {
     goToDashboard() {
       this.currentUser ? this.showApp() : this.showLogin();
     },
+
+    async resetSystem() {
+      // Confirm with user before resetting
+      const confirmed = confirm(
+        "WARNING: This will delete ALL staff members and their data.\n\nThis action cannot be undone. Are you sure?"
+      );
+      if (!confirmed) return;
+
+      const doubleConfirm = prompt(
+        'Type "DELETE ALL" to confirm permanent deletion of all staff:'
+      );
+      if (doubleConfirm !== "DELETE ALL") {
+        this.showToast("Reset cancelled", "info");
+        return;
+      }
+
+      try {
+        // Clear all users from storage (via API)
+        await this.setUsers([]);
+        
+        // Log the action
+        await this.logAudit("SYSTEM_RESET", "Admin deleted all staff members");
+        
+        this.showToast("All staff members have been deleted", "success");
+        
+        // Reload the staff list to reflect changes
+        if (typeof this.loadStaff === "function") {
+          await this.loadStaff();
+        }
+      } catch (error) {
+        console.error("[v0] Error resetting system:", error);
+        this.showToast("Error deleting staff: " + error.message, "error");
+      }
+    },
   },
 );
 
